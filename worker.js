@@ -36,6 +36,30 @@ function sanitizeBitaxe(b) {
   };
 }
 
+function numMap(o, max) {
+  const out = {};
+  if (!o || typeof o !== "object") return out;
+  for (const [k, v] of Object.entries(o)) {
+    if (Object.keys(out).length >= max) break;
+    if (/^[A-Za-z0-9_]{1,40}$/.test(k) && num(v) !== null) out[k] = v;
+  }
+  return out;
+}
+
+function sanitizeDmnd(d) {
+  if (!d || typeof d !== "object") return null;
+  const t = Array.isArray(d.templates) ? d.templates.slice(0, 3) : [];
+  return {
+    templates: t.filter((x) => x && typeof x === "object").map((x) => ({
+      height: num(x.height), fees: num(x.fees), txCount: num(x.txCount), fullness: num(x.fullness),
+      feeRate: num(x.feeRate), prioritized: num(x.prioritized), declared: bool(x.declared),
+      gained: num(x.gained), coinbase: num(x.coinbase), age: num(x.age),
+    })),
+    stats: numMap(d.stats, 16),
+    pool: numMap(d.pool, 8),
+  };
+}
+
 function sanitizeRes(r) {
   if (!r || typeof r !== "object") return null;
   return { memBytes: num(r.memBytes), cpuPct: num(r.cpuPct), diskFree: num(r.diskFree), diskTotal: num(r.diskTotal) };
@@ -73,6 +97,7 @@ function sanitize(body) {
     bytesOut: num(body.bytesOut),
     resources: sanitizeRes(body.resources),
     bitaxe: sanitizeBitaxe(body.bitaxe),
+    dmnd: sanitizeDmnd(body.dmnd),
   };
 }
 
@@ -161,9 +186,12 @@ nav button[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
 .bar{height:12px;border-radius:99px;background:var(--bar);overflow:hidden;margin:10px 0 8px}
 .bar>i{display:block;height:100%;background:var(--accent);border-radius:99px;width:0}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin:12px 0}
-.stat .k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
-.stat .v{font-size:22px;font-weight:650;margin-top:2px;word-break:break-word}
-.stat .s{color:var(--mute);font-size:12px;margin-top:2px}
+.stat .k,.tpl .k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.stat .v,.tpl .v{font-size:22px;font-weight:650;margin-top:2px;word-break:break-word}
+.stat .s,.tpl .s{color:var(--mute);font-size:12px;margin-top:2px}
+
+.stat.dim{opacity:.55}
+.tpl.decl{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 h2.sec{font-size:13px;margin:18px 0 0;color:var(--mute);text-transform:uppercase;letter-spacing:.05em}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;background:var(--mute);vertical-align:middle}
 .dot.on{background:var(--ok)}.dot.off{background:var(--bar);box-shadow:inset 0 0 0 1px var(--mute)}
@@ -210,6 +238,11 @@ footer{margin-top:24px;color:var(--mute);font-size:12px}
   <h2 class="sec" id="oddsh" hidden>Block odds</h2>
   <div class="grid" id="odds"></div>
   <div class="note" id="oddsnote" hidden></div>
+  <h2 class="sec">Block templates</h2>
+  <div class="note" id="tpnote"></div>
+  <div class="grid" id="tpl"></div>
+  <h2 class="sec" id="cph" hidden>DMND client</h2>
+  <div class="grid" id="cpg"></div>
   <h2 class="sec" id="bxh" hidden>Bitaxe</h2>
   <div class="grid" id="bx"></div>
   <div class="charts">
@@ -309,6 +342,30 @@ function stat(k,v,s){var d=document.createElement('div');d.className='card stat'
   d.appendChild(a);d.appendChild(b);
   if(s){var c=document.createElement('div');c.className='s';c.textContent=s;d.appendChild(c)}
   return d}
+function human(k){return k.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/_/g,' ').replace(/^./,function(c){return c.toUpperCase()})}
+function sats(n){return n==null?'–':fmt(Math.round(n))+' sats'}
+function renderTemplates(l,synced){
+  var g=$('tpl'),nt=$('tpnote'),d=l.dmnd,t=d&&d.templates||[];g.textContent='';
+  if(!t.length){
+    nt.textContent=synced?'Waiting for the DMND client to report block templates.':'Once the node finishes syncing, sv2-tp builds candidate blocks from the mempool and the DMND client lists the latest three here: total fees, how full the block is, fee rate and transaction count. The one marked Declared is the block your miner works on. Only totals are shown, never individual transactions.';
+    ['Total fees','Block fullness','Fee rate','Transactions'].forEach(function(k){var c=stat(k,'–','after sync');c.className+=' dim';g.appendChild(c)});
+    return}
+  nt.textContent='The latest candidate blocks your node built, newest first. Declared is the block your miner is hashing on. Totals only, no transactions are published.';
+  t.forEach(function(x,i){
+    var c=document.createElement('div');c.className='card tpl'+(x.declared?' decl':'');
+    var h=document.createElement('div');h.className='k';h.textContent=(x.declared?'Declared · ':'Candidate · ')+(x.height!=null?'block '+fmt(x.height):'template '+(i+1));c.appendChild(h);
+    var v=document.createElement('div');v.className='v';v.textContent=sats(x.fees);c.appendChild(v);
+    var rows=[['Fullness',x.fullness==null?'–':x.fullness.toFixed(1)+'%'],['Fee rate',x.feeRate==null?'–':x.feeRate.toFixed(1)+' sat/vB'],['Transactions',fmt(x.txCount)],['Prioritised',fmt(x.prioritized)],['Fees gained',x.gained==null?'–':(x.gained>=0?'+':'')+fmt(Math.round(x.gained))+' sats']];
+    rows.forEach(function(r){var p=document.createElement('div');p.className='s';p.textContent=r[0]+': '+r[1];c.appendChild(p)});
+    var bar=document.createElement('div');bar.className='bar';var f=document.createElement('i');f.style.width=Math.max(0,Math.min(100,x.fullness||0))+'%';bar.appendChild(f);c.appendChild(bar);
+    g.appendChild(c)})
+}
+function renderClient(l){
+  var g=$('cpg'),d=l.dmnd,hd=$('cph');g.textContent='';
+  var all=[];if(d){Object.keys(d.stats||{}).forEach(function(k){all.push([k,d.stats[k]])});Object.keys(d.pool||{}).forEach(function(k){all.push([k,d.pool[k]])})}
+  hd.hidden=!all.length;
+  all.forEach(function(r){g.appendChild(stat(human(r[0]),r[1]>=1e6?hnum(r[1]):fmt(Math.round(r[1]*100)/100),''))})
+}
 function chart(el,pts,opt){
   el.textContent='';
   if(!pts||pts.length<2){var e=document.createElement('div');e.className='empty';e.textContent='collecting data…';el.appendChild(e);return}
@@ -367,7 +424,7 @@ function render(s){
    ['Node memory',l.resources&&l.resources.memBytes!=null?hb(l.resources.memBytes):'–',l.resources&&l.resources.cpuPct!=null?l.resources.cpuPct.toFixed(0)+'% CPU':''],
    ['Disk free',l.resources&&l.resources.diskFree!=null?hb(l.resources.diskFree):'–',l.resources&&l.resources.diskTotal!=null?'of '+hb(l.resources.diskTotal):'']
   ].forEach(function(r){g.appendChild(stat(r[0],r[1],r[2]))});
-  renderStack(l,s,synced,pct);renderOdds(l,s);
+  renderStack(l,s,synced,pct);renderOdds(l,s);renderTemplates(l,synced);renderClient(l);
   var bx=l.bitaxe,bg=$('bx');bg.textContent='';$('bxh').hidden=!bx;
   if(bx&&!bx.online){bg.appendChild(stat('Bitaxe','Offline','not answering on the network'))}
   else if(bx){
