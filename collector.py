@@ -187,7 +187,15 @@ def client_get(path, token=None):
         return None
 
 
+def unwrap(raw):
+    """The client wraps replies as {success, message, data}."""
+    if isinstance(raw, dict) and isinstance(raw.get("data"), (dict, list)):
+        return raw["data"]
+    return raw
+
+
 def template_list(raw):
+    raw = unwrap(raw)
     if isinstance(raw, list):
         return raw
     if isinstance(raw, dict):
@@ -238,7 +246,7 @@ def dmnd_client(synced):
         cfg = load_env_file(DMND_ENV)
     except Exception:
         return None
-    if not wait_for_client_api(35 if synced else 1):
+    if not wait_for_client_api(35):
         return None
     schema = {}
     out = {"templates": [], "stats": {}, "pool": {}}
@@ -249,16 +257,11 @@ def dmnd_client(synced):
     agg = client_get("/api/stats/aggregate")
     if agg is not None:
         schema["aggregate"] = shape(agg)
-        out["stats"] = numeric_scalars(agg)
-        if isinstance(agg, dict):
-            for v in agg.values():
-                if isinstance(v, dict):
-                    out["stats"].update({k: x for k, x in numeric_scalars(v).items() if k not in out["stats"]})
-                    break
+        out["stats"] = numeric_scalars(unwrap(agg))
     pool = client_get("/api/pool/info")
     if pool is not None:
         schema["pool"] = shape(pool)
-        out["pool"] = numeric_scalars(pool, 8)
+        out["pool"] = numeric_scalars(unwrap(pool), 8)
     try:
         os.makedirs(os.path.dirname(SCHEMA_LOG), exist_ok=True)
         with open(SCHEMA_LOG, "w") as f:
