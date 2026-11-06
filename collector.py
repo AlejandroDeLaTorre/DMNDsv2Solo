@@ -6,6 +6,7 @@ Config comes from ~/.config/btc-dashboard.env (PUSH_URL, WRITE_KEY).
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 import urllib.request
@@ -59,6 +60,57 @@ def services():
     }
 
 
+def bitaxe(url):
+    """Numbers from the Bitaxe's local API. The address, pool user and wallet are never sent."""
+    if not url:
+        return None
+    try:
+        with urllib.request.urlopen(url.rstrip("/") + "/api/system/info", timeout=5) as r:
+            d = json.load(r)
+    except Exception:
+        return {"online": False}
+
+    def n(key):
+        v = d.get(key)
+        return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+    best = d.get("bestDiff")
+    return {
+        "online": True,
+        "hashrate": n("hashRate"),          # GH/s
+        "temp": n("temp"),                  # ASIC, C
+        "vrTemp": n("vrTemp"),              # voltage regulator, C
+        "power": n("power"),                # W
+        "voltage": n("voltage"),            # mV
+        "frequency": n("frequency"),        # MHz
+        "fanRpm": n("fanrpm"),
+        "fanPct": n("fanspeed"),
+        "accepted": n("sharesAccepted"),
+        "rejected": n("sharesRejected"),
+        "bestDiff": str(best)[:16] if best is not None else None,
+        "uptime": n("uptimeSeconds"),
+        "rssi": n("wifiRSSI"),
+    }
+
+
+def node_resources():
+    """Aggregate resource use of the node process and its data disk."""
+    out = {}
+    try:
+        ps = subprocess.run(["ps", "-C", "bitcoin-node", "-o", "rss=,pcpu="], capture_output=True, text=True, timeout=5).stdout.split()
+        if len(ps) >= 2:
+            out["memBytes"] = int(ps[0]) * 1024
+            out["cpuPct"] = float(ps[1])
+    except Exception:
+        pass
+    try:
+        u = shutil.disk_usage(os.path.expanduser("~/.bitcoin"))
+        out["diskFree"], out["diskTotal"] = u.free, u.total
+    except Exception:
+        pass
+    return out
+
+
 def main():
     cfg = load_env()
     chain = rpc("getblockchaininfo")
@@ -66,6 +118,7 @@ def main():
     mem = rpc("getmempoolinfo")
     peers = rpc("getpeerinfo")
     uptime = rpc("uptime")
+    totals = rpc("getnettotals")
 
     networks = {}
     for p in peers:
@@ -92,6 +145,10 @@ def main():
         "version": net.get("subversion", "").strip("/"),
         "uptime": uptime,
         "services": services(),
+        "bytesIn": totals.get("totalbytesrecv"),
+        "bytesOut": totals.get("totalbytessent"),
+        "resources": node_resources(),
+        "bitaxe": bitaxe(cfg.get("BITAXE_URL")),
     }
     req = urllib.request.Request(
         cfg["PUSH_URL"],

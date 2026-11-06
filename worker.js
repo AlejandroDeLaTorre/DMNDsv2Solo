@@ -22,6 +22,23 @@ function sanitizeServices(s) {
   };
 }
 
+function sanitizeBitaxe(b) {
+  if (!b || typeof b !== "object") return null;
+  if (b.online !== true) return { online: false };
+  return {
+    online: true,
+    hashrate: num(b.hashrate), temp: num(b.temp), vrTemp: num(b.vrTemp), power: num(b.power),
+    voltage: num(b.voltage), frequency: num(b.frequency), fanRpm: num(b.fanRpm), fanPct: num(b.fanPct),
+    accepted: num(b.accepted), rejected: num(b.rejected), bestDiff: str(b.bestDiff),
+    uptime: num(b.uptime), rssi: num(b.rssi),
+  };
+}
+
+function sanitizeRes(r) {
+  if (!r || typeof r !== "object") return null;
+  return { memBytes: num(r.memBytes), cpuPct: num(r.cpuPct), diskFree: num(r.diskFree), diskTotal: num(r.diskTotal) };
+}
+
 function sanitize(body) {
   const n = body.network && typeof body.network === "object" ? body.network : {};
   const nets = {};
@@ -49,6 +66,10 @@ function sanitize(body) {
     version: str(body.version),
     uptime: num(body.uptime),
     services: sanitizeServices(body.services),
+    bytesIn: num(body.bytesIn),
+    bytesOut: num(body.bytesOut),
+    resources: sanitizeRes(body.resources),
+    bitaxe: sanitizeBitaxe(body.bitaxe),
   };
 }
 
@@ -77,6 +98,8 @@ async function handlePush(request, env) {
   state.history.push({
     t: snap.t, blocks: snap.blocks, headers: snap.headers, progress: snap.progress,
     peers: (snap.peersIn || 0) + (snap.peersOut || 0), mempool: snap.mempoolTx, disk: snap.sizeOnDisk,
+    hr: snap.bitaxe && snap.bitaxe.online ? snap.bitaxe.hashrate : null,
+    temp: snap.bitaxe && snap.bitaxe.online ? snap.bitaxe.temp : null,
   });
   if (state.history.length > MAX_POINTS) state.history = thin(state.history);
   await env.KV.put("state", JSON.stringify(state));
@@ -167,11 +190,15 @@ footer{margin-top:24px;color:var(--mute);font-size:12px}
   <div class="grid" id="stats"></div>
   <h2 class="sec">Mining stack</h2>
   <div class="grid" id="stack"></div>
+  <h2 class="sec" id="bxh" hidden>Bitaxe</h2>
+  <div class="grid" id="bx"></div>
   <div class="charts">
     <div class="card chart"><h2>Blocks validated</h2><div id="c1"></div></div>
     <div class="card chart"><h2>Sync speed (blocks/min)</h2><div id="c2"></div></div>
     <div class="card chart"><h2>Connected peers</h2><div id="c3"></div></div>
     <div class="card chart"><h2>Disk used (GB)</h2><div id="c4"></div></div>
+    <div class="card chart"><h2>Bitaxe hashrate (GH/s)</h2><div id="c5"></div></div>
+    <div class="card chart"><h2>Bitaxe temperature (&deg;C)</h2><div id="c6"></div></div>
   </div>
 </section>
 
@@ -197,6 +224,9 @@ function gb(b){return b==null?'–':(b/1e9).toFixed(1)+' GB'}
 function ago(s){if(s<90)return s+'s ago';if(s<5400)return Math.round(s/60)+' min ago';if(s<172800)return Math.round(s/3600)+' h ago';return Math.round(s/86400)+' d ago'}
 function dur(s){var d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+'d '+h+'h':h?h+'h '+m+'m':m+'m'}
 function dstr(t){return t?new Date(t*1000).toISOString().slice(0,10):'–'}
+function hb(b){if(b==null)return '–';var u=['B','KB','MB','GB','TB'],i=0;while(b>=1024&&i<4){b/=1024;i++}return b.toFixed(i>1?1:0)+' '+u[i]}
+function nets(o){if(!o)return '–';var k=Object.keys(o);if(!k.length)return '–';return k.map(function(n){return n+' '+o[n]}).join(' · ')}
+function hrate(g){return g==null?'–':g>=1000?(g/1000).toFixed(2)+' TH/s':g.toFixed(0)+' GH/s'}
 function stat(k,v,s){var d=document.createElement('div');d.className='card stat';
   var a=document.createElement('div');a.className='k';a.textContent=k;
   var b=document.createElement('div');b.className='v';b.textContent=v;
@@ -254,7 +284,12 @@ function render(s){
    ['Disk used',gb(l.sizeOnDisk),l.pruned?'pruned · target '+gb(l.pruneTarget):'full archive'],
    ['Oldest block kept',l.pruned?fmt(l.pruneHeight):'all',l.pruned?'older blocks pruned':''],
    ['Difficulty',l.difficulty==null?'–':l.difficulty>=1e12?(l.difficulty/1e12).toFixed(2)+' T':(l.difficulty/1e9).toFixed(2)+' G','at block '+fmt(l.blocks)],
-   ['Uptime',l.uptime==null?'–':dur(l.uptime),'']
+   ['Uptime',l.uptime==null?'–':dur(l.uptime),''],
+   ['Latest block',synced&&l.tipTime?ago(s.now-l.tipTime):dstr(l.tipTime),synced?'time since last block':'date being validated'],
+   ['Data transferred',l.bytesIn==null?'–':hb(l.bytesIn+l.bytesOut),l.bytesIn==null?'':hb(l.bytesIn)+' in · '+hb(l.bytesOut)+' out'],
+   ['Peers by network',nets(l.networks),'connected now'],
+   ['Node memory',l.resources&&l.resources.memBytes!=null?hb(l.resources.memBytes):'–',l.resources&&l.resources.cpuPct!=null?l.resources.cpuPct.toFixed(0)+'% CPU':''],
+   ['Disk free',l.resources&&l.resources.diskFree!=null?hb(l.resources.diskFree):'–',l.resources&&l.resources.diskTotal!=null?'of '+hb(l.resources.diskTotal):'']
   ].forEach(function(r){g.appendChild(stat(r[0],r[1],r[2]))});
   var sv=l.services,sk=$('stack');sk.textContent='';
   if(sv){
@@ -268,7 +303,22 @@ function render(s){
       v.appendChild(d);v.appendChild(document.createTextNode(r[1]?'Up':'Down'));sk.appendChild(c)});
     sk.appendChild(stat('Miners connected',sv.client?fmt(sv.miners):'–',sv.client?'on the DMND client':'client not running'));
   }
+  var bx=l.bitaxe,bg=$('bx');bg.textContent='';$('bxh').hidden=!bx;
+  if(bx&&!bx.online){bg.appendChild(stat('Bitaxe','Offline','not answering on the network'))}
+  else if(bx){
+    var eff=bx.power!=null&&bx.hashrate?(bx.power/(bx.hashrate/1000)).toFixed(1)+' J/TH':'';
+    [['Hashrate',hrate(bx.hashrate),bx.frequency!=null?bx.frequency+' MHz':''],
+     ['ASIC temperature',bx.temp==null?'–':bx.temp<=0?'idle':bx.temp.toFixed(1)+' °C',bx.vrTemp!=null?'regulator '+bx.vrTemp.toFixed(1)+' °C':''],
+     ['Power',bx.power==null?'–':bx.power.toFixed(1)+' W',eff],
+     ['Shares',fmt(bx.accepted)+' / '+fmt(bx.rejected),bx.bestDiff?'accepted / rejected · best '+bx.bestDiff:'accepted / rejected'],
+     ['Fan',bx.fanRpm==null?'–':fmt(bx.fanRpm)+' rpm',bx.fanPct!=null?bx.fanPct+'%':''],
+     ['Input voltage',bx.voltage==null?'–':(bx.voltage/1000).toFixed(2)+' V','power supply'],
+     ['Bitaxe uptime',bx.uptime==null?'–':dur(bx.uptime),bx.rssi!=null?'Wi-Fi '+bx.rssi+' dBm':'']
+    ].forEach(function(r){bg.appendChild(stat(r[0],r[1],r[2]))});
+  }
   var h=s.history;
+  chart($('c5'),h.filter(function(p){return p.hr!=null}).map(function(p){return[p.t,p.hr]}),{fmt:function(v){return v.toFixed(0)},zero:true});
+  chart($('c6'),h.filter(function(p){return p.temp!=null&&p.temp>0}).map(function(p){return[p.t,p.temp]}),{fmt:function(v){return v.toFixed(0)}});
   chart($('c1'),h.filter(function(p){return p.blocks!=null}).map(function(p){return[p.t,p.blocks]}),{fmt:function(v){return fmt(Math.round(v))}});
   chart($('c2'),sp,{fmt:function(v){return v.toFixed(0)},zero:true});
   chart($('c3'),h.filter(function(p){return p.peers!=null}).map(function(p){return[p.t,p.peers]}),{fmt:function(v){return v.toFixed(0)},zero:true});
