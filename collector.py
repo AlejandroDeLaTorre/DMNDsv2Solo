@@ -30,6 +30,35 @@ def rpc(*args):
     return json.loads(out)
 
 
+TP_PORT = 8336        # sv2-tp (Template Provider), localhost only
+CLIENT_PORT = 32767   # dmnd-client stratum V1 port for miners
+IPC_SOCKET = os.path.expanduser("~/.bitcoin/node.sock")
+
+
+def ss(*args):
+    try:
+        return subprocess.run(["ss", "-H", *args], capture_output=True, text=True, timeout=10).stdout
+    except Exception:
+        return ""
+
+
+def services():
+    """Booleans and one count only. No addresses of miners or this machine are collected."""
+    listening = ss("-ltn")
+    tp_up = f":{TP_PORT} " in listening
+    client_up = f":{CLIENT_PORT} " in listening
+    miners = 0
+    if client_up:
+        est = ss("-tn", "state", "established", f"( sport = :{CLIENT_PORT} )")
+        miners = len([ln for ln in est.splitlines() if ln.strip()])
+    return {
+        "ipc": os.path.exists(IPC_SOCKET),
+        "tp": tp_up,
+        "client": client_up,
+        "miners": miners,
+    }
+
+
 def main():
     cfg = load_env()
     chain = rpc("getblockchaininfo")
@@ -62,6 +91,7 @@ def main():
         "mempoolBytes": mem.get("bytes"),
         "version": net.get("subversion", "").strip("/"),
         "uptime": uptime,
+        "services": services(),
     }
     req = urllib.request.Request(
         cfg["PUSH_URL"],

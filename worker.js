@@ -11,6 +11,17 @@ const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const str = (v) => (typeof v === "string" ? v.slice(0, 64) : null);
 const bool = (v) => (typeof v === "boolean" ? v : null);
 
+function sanitizeServices(s) {
+  if (!s || typeof s !== "object") return null;
+  const m = num(s.miners);
+  return {
+    ipc: bool(s.ipc),
+    tp: bool(s.tp),
+    client: bool(s.client),
+    miners: m === null ? null : Math.max(0, Math.min(1000, Math.floor(m))),
+  };
+}
+
 function sanitize(body) {
   const n = body.network && typeof body.network === "object" ? body.network : {};
   const nets = {};
@@ -37,6 +48,7 @@ function sanitize(body) {
     mempoolBytes: num(body.mempoolBytes),
     version: str(body.version),
     uptime: num(body.uptime),
+    services: sanitizeServices(body.services),
   };
 }
 
@@ -126,6 +138,9 @@ nav button[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
 .stat .k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
 .stat .v{font-size:22px;font-weight:650;margin-top:2px;word-break:break-word}
 .stat .s{color:var(--mute);font-size:12px;margin-top:2px}
+h2.sec{font-size:13px;margin:18px 0 0;color:var(--mute);text-transform:uppercase;letter-spacing:.05em}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;background:var(--mute);vertical-align:middle}
+.dot.on{background:var(--ok)}.dot.off{background:var(--bar);box-shadow:inset 0 0 0 1px var(--mute)}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
 .chart h2{font-size:14px;margin:0 0 8px}
 svg{width:100%;height:auto;display:block}
@@ -150,6 +165,8 @@ footer{margin-top:24px;color:var(--mute);font-size:12px}
     <div class="sub" id="pmore"></div>
   </div>
   <div class="grid" id="stats"></div>
+  <h2 class="sec">Mining stack</h2>
+  <div class="grid" id="stack"></div>
   <div class="charts">
     <div class="card chart"><h2>Blocks validated</h2><div id="c1"></div></div>
     <div class="card chart"><h2>Sync speed (blocks/min)</h2><div id="c2"></div></div>
@@ -239,6 +256,18 @@ function render(s){
    ['Difficulty',l.difficulty==null?'–':l.difficulty>=1e12?(l.difficulty/1e12).toFixed(2)+' T':(l.difficulty/1e9).toFixed(2)+' G','at block '+fmt(l.blocks)],
    ['Uptime',l.uptime==null?'–':dur(l.uptime),'']
   ].forEach(function(r){g.appendChild(stat(r[0],r[1],r[2]))});
+  var sv=l.services,sk=$('stack');sk.textContent='';
+  if(sv){
+    var wait=!synced;
+    [['Node IPC',sv.ipc,'multiprocess node','not enabled'],
+     ['Template provider',sv.tp,wait?'running, waiting for sync':'serving templates','not running'],
+     ['DMND client',sv.client,'accepting miners','not running']
+    ].forEach(function(r){
+      var c=stat(r[0],'',r[1]?r[2]:r[3]);
+      var v=c.querySelector('.v'),d=document.createElement('span');d.className='dot '+(r[1]?'on':'off');
+      v.appendChild(d);v.appendChild(document.createTextNode(r[1]?'Up':'Down'));sk.appendChild(c)});
+    sk.appendChild(stat('Miners connected',sv.client?fmt(sv.miners):'–',sv.client?'on the DMND client':'client not running'));
+  }
   var h=s.history;
   chart($('c1'),h.filter(function(p){return p.blocks!=null}).map(function(p){return[p.t,p.blocks]}),{fmt:function(v){return fmt(Math.round(v))}});
   chart($('c2'),sp,{fmt:function(v){return v.toFixed(0)},zero:true});
