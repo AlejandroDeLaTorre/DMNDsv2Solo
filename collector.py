@@ -31,7 +31,10 @@ def load_env():
 
 def rpc(*args):
     out = subprocess.run([CLI, *args], capture_output=True, text=True, timeout=30, check=True).stdout
-    return json.loads(out)
+    try:
+        return json.loads(out)
+    except ValueError:
+        return out.strip()  # bare strings such as block hashes
 
 
 TP_PORT = 8336        # sv2-tp (Template Provider), localhost only
@@ -282,6 +285,79 @@ def load_env_file(path):
     return cfg
 
 
+POOL_TAGS = [("foundry", "Foundry USA"), ("antpool", "AntPool"), ("f2pool", "F2Pool"), ("viabtc", "ViaBTC"),
+             ("binance", "Binance Pool"), ("mara", "MARA Pool"), ("luxor", "Luxor"), ("sbicrypto", "SBI Crypto"),
+             ("braiins", "Braiins"), ("slush", "Braiins"), ("ocean", "OCEAN"), ("dmnd", "DMND"),
+             ("spiderpool", "SpiderPool"), ("poolin", "Poolin"), ("btc.com", "BTC.com"), ("secpool", "SecPool"),
+             ("ultimus", "Ultimus"), ("carbon", "Carbon Negative"), ("kucoin", "KuCoinPool"), ("bitfufu", "BitFuFu")]
+FEE_BUCKETS = [0, 2, 5, 10, 25, 50, 100]  # lower bounds in sat/vB
+
+
+def fee_market(mem_size):
+    """Mempool vsize per fee-rate bucket and fee estimates. Aggregates only."""
+    out = {"buckets": None, "estimates": {}}
+    if mem_size and mem_size <= 60000:
+        try:
+            raw = rpc("getrawmempool", "true")
+            vs = [0] * len(FEE_BUCKETS)
+            for tx in raw.values():
+                vsize = tx.get("vsize") or 0
+                fee = (tx.get("fees") or {}).get("base")
+                if not vsize or fee is None:
+                    continue
+                rate = fee * 1e8 / vsize
+                i = max(j for j, lo in enumerate(FEE_BUCKETS) if rate >= lo)
+                vs[i] += vsize
+            out["buckets"] = vs
+        except Exception:
+            pass
+    for target in (1, 3, 6, 24, 144):
+        try:
+            r = rpc("estimatesmartfee", str(target))
+            if r.get("feerate") is not None:
+                out["estimates"][str(target)] = round(r["feerate"] * 1e5, 2)  # BTC/kvB -> sat/vB
+        except Exception:
+            pass
+    return out
+
+
+def pool_name(coinbase_hex):
+    try:
+        text = bytes.fromhex(coinbase_hex).decode("latin-1").lower()
+    except Exception:
+        return None
+    for tag, name in POOL_TAGS:
+        if tag in text:
+            return name
+    return None
+
+
+def recent_blocks(tip, count=6):
+    """Last few blocks: totals and the pool tag found in the coinbase. No addresses."""
+    out = []
+    try:
+        h = rpc("getblockhash", str(tip))
+        for _ in range(count):
+            blk = rpc("getblock", h, "1")
+            st = rpc("getblockstats", h)
+            name = None
+            try:
+                cb = rpc("getrawtransaction", blk["tx"][0], "true", h)
+                name = pool_name(cb["vin"][0].get("coinbase", ""))
+            except Exception:
+                pass
+            out.append({"height": blk["height"], "time": blk["time"], "txs": st.get("txs"),
+                        "size": blk.get("size"), "weight": blk.get("weight"),
+                        "fees": st.get("totalfee"), "feeRate": st.get("avgfeerate"),
+                        "subsidy": st.get("subsidy"), "pool": name})
+            h = blk.get("previousblockhash")
+            if not h:
+                break
+    except Exception:
+        pass
+    return out
+
+
 def node_resources():
     """Aggregate resource use of the node process and its data disk."""
     out = {}
@@ -339,6 +415,8 @@ def main():
         "bytesOut": totals.get("totalbytessent"),
         "resources": node_resources(),
         "bitaxe": bitaxe(cfg.get("BITAXE_URL")),
+        "fees": fee_market(mem.get("size")),
+        "recent": recent_blocks(chain.get("blocks")) if chain.get("initialblockdownload") is False else [],
         "dmnd": dmnd_client(chain.get("initialblockdownload") is False),
     }
     req = urllib.request.Request(

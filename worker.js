@@ -60,6 +60,27 @@ function sanitizeDmnd(d) {
   };
 }
 
+function sanitizeFees(f) {
+  if (!f || typeof f !== "object") return null;
+  const b = Array.isArray(f.buckets) ? f.buckets.slice(0, 7).map(num) : null;
+  return { buckets: b && b.every((x) => x !== null) ? b : null, estimates: numMap(f.estimates, 6) };
+}
+
+function sanitizeRecent(r) {
+  if (!Array.isArray(r)) return [];
+  return r.slice(0, 6).filter((x) => x && typeof x === "object").map((x) => ({
+    height: num(x.height), time: num(x.time), txs: num(x.txs), size: num(x.size), weight: num(x.weight),
+    fees: num(x.fees), feeRate: num(x.feeRate), subsidy: num(x.subsidy), pool: str(x.pool),
+  }));
+}
+
+function parseDiff(s) {
+  const m = /^([0-9.]+)\s*([KMGTPE]?)$/i.exec(String(s || "").trim());
+  if (!m) return null;
+  const f = { "": 1, K: 1e3, M: 1e6, G: 1e9, T: 1e12, P: 1e15, E: 1e18 }[m[2].toUpperCase()];
+  return parseFloat(m[1]) * f;
+}
+
 function sanitizeRes(r) {
   if (!r || typeof r !== "object") return null;
   return { memBytes: num(r.memBytes), cpuPct: num(r.cpuPct), diskFree: num(r.diskFree), diskTotal: num(r.diskTotal) };
@@ -98,6 +119,8 @@ function sanitize(body) {
     resources: sanitizeRes(body.resources),
     bitaxe: sanitizeBitaxe(body.bitaxe),
     dmnd: sanitizeDmnd(body.dmnd),
+    fees: sanitizeFees(body.fees),
+    recent: sanitizeRecent(body.recent),
   };
 }
 
@@ -116,7 +139,7 @@ async function handlePush(request, env) {
   if (diff !== 0) return new Response("unauthorized", { status: 401 });
 
   const raw = await request.text();
-  if (raw.length > 20000) return new Response("too large", { status: 413 });
+  if (raw.length > 40000) return new Response("too large", { status: 413 });
   let body;
   try { body = JSON.parse(raw); } catch { return new Response("bad json", { status: 400 }); }
   const snap = sanitize(body);
@@ -129,6 +152,13 @@ async function handlePush(request, env) {
     hr: snap.bitaxe && snap.bitaxe.online ? snap.bitaxe.hashrate : null,
     temp: snap.bitaxe && snap.bitaxe.online ? snap.bitaxe.temp : null,
   });
+  const bd = snap.bitaxe && snap.bitaxe.online ? parseDiff(snap.bitaxe.bestDiff) : null;
+  state.shares = state.shares || [];
+  if (bd !== null && bd > (state.bestShare || 0)) {
+    state.shares.push({ t: snap.t, diff: snap.bitaxe.bestDiff, v: bd });
+    state.shares = state.shares.slice(-25);
+    state.bestShare = bd;
+  }
   if (state.history.length > MAX_POINTS) state.history = thin(state.history);
   await env.KV.put("state", JSON.stringify(state));
   return new Response("ok");
@@ -241,8 +271,17 @@ footer{margin-top:24px;color:var(--mute);font-size:12px}
   <h2 class="sec">Block templates</h2>
   <div class="note" id="tpnote"></div>
   <div class="grid" id="tpl"></div>
+  <h2 class="sec">Fee market</h2>
+  <div class="note" id="fmnote"></div>
+  <div class="grid" id="fm"></div>
+  <div class="card" id="fmb" hidden></div>
+  <h2 class="sec">Latest blocks</h2>
+  <div class="note" id="rbnote"></div>
+  <div class="grid" id="rb"></div>
   <h2 class="sec" id="cph" hidden>DMND client</h2>
   <div class="grid" id="cpg"></div>
+  <h2 class="sec" id="sfh" hidden>Best shares found</h2>
+  <div class="card" id="sf" hidden></div>
   <h2 class="sec" id="bxh" hidden>Bitaxe</h2>
   <div class="grid" id="bx"></div>
   <div class="charts">
@@ -366,6 +405,42 @@ function renderClient(l){
   hd.hidden=!all.length;
   all.forEach(function(r){g.appendChild(stat(human(r[0]),r[1]>=1e6?hnum(r[1]):fmt(Math.round(r[1]*100)/100),''))})
 }
+function renderFees(l){
+  var g=$('fm'),nt=$('fmnote'),bx=$('fmb'),f=l.fees;g.textContent='';bx.textContent='';
+  var est=f&&f.estimates||{},keys=Object.keys(est);
+  nt.textContent=keys.length||(f&&f.buckets)?'Straight from your own node: what it expects a transaction to pay, and how the mempool is spread across fee rates.':'The fee market fills in once the node is synced and has seen real mempool traffic. Fee estimates need a synced node.';
+  var lab={'1':'Next block','3':'Within 3 blocks','6':'Within 6 blocks','24':'Within 4 hours','144':'Within a day'};
+  ['1','3','6','24','144'].forEach(function(k){if(est[k]!=null)g.appendChild(stat(lab[k],est[k].toFixed(1)+' sat/vB','estimated fee rate'))});
+  if(!keys.length){var c=stat('Fee estimate','–','after sync');c.className+=' dim';g.appendChild(c)}
+  l.mempoolTx!=null&&g.appendChild(stat('Mempool',fmt(l.mempoolTx)+' tx',l.mempoolBytes!=null?(l.mempoolBytes/1e6).toFixed(1)+' MB waiting':''));
+  var b=f&&f.buckets;if(!b){bx.hidden=true;return}
+  var tot=b.reduce(function(a,x){return a+x},0);bx.hidden=!tot;if(!tot)return;
+  var names=['< 2','2-5','5-10','10-25','25-50','50-100','100+'],mx=Math.max.apply(null,b);
+  var t=document.createElement('div');t.className='k';t.textContent='Mempool by fee rate (sat/vB)';t.style.cssText='color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px';bx.appendChild(t);
+  b.forEach(function(v,i){var r=document.createElement('div');r.style.cssText='display:flex;align-items:center;gap:8px;font-size:12px;margin:3px 0';
+    var a=document.createElement('span');a.style.cssText='width:56px;color:var(--mute)';a.textContent=names[i];
+    var bar=document.createElement('div');bar.className='bar';bar.style.cssText='flex:1;margin:0;height:8px';var fi=document.createElement('i');fi.style.width=(v/mx*100)+'%';bar.appendChild(fi);
+    var n=document.createElement('span');n.style.cssText='width:70px;text-align:right';n.textContent=(v/1e6).toFixed(2)+' MvB';
+    r.appendChild(a);r.appendChild(bar);r.appendChild(n);bx.appendChild(r)})
+}
+function renderBlocks(l,s){
+  var g=$('rb'),nt=$('rbnote'),r=l.recent||[];g.textContent='';
+  if(!r.length){nt.textContent='The last few blocks appear here once the node is synced: size, transactions, fees and the pool tag found in the block.';var c=stat('Latest block','–','after sync');c.className+=' dim';g.appendChild(c);return}
+  nt.textContent='Newest first. The pool name comes from the tag in the block\'s coinbase, so untagged blocks show as unknown.';
+  r.forEach(function(x){var c=document.createElement('div');c.className='card tpl';
+    var k=document.createElement('div');k.className='k';k.textContent='Block '+fmt(x.height)+' · '+ago(Math.max(0,s.now-x.time));c.appendChild(k);
+    var v=document.createElement('div');v.className='v';v.textContent=x.pool||'unknown pool';c.appendChild(v);
+    [['Transactions',fmt(x.txs)],['Size',x.size==null?'–':(x.size/1e6).toFixed(2)+' MB'],['Full',x.weight==null?'–':(x.weight/40000).toFixed(1)+'%'],['Fees',x.fees==null?'–':(x.fees/1e8).toFixed(3)+' BTC'],['Avg fee rate',x.feeRate==null?'–':x.feeRate+' sat/vB']].forEach(function(q){var p=document.createElement('div');p.className='s';p.textContent=q[0]+': '+q[1];c.appendChild(p)});
+    g.appendChild(c)})
+}
+function renderShares(s){
+  var box=$('sf'),hd=$('sfh'),a=s.shares||[];box.textContent='';hd.hidden=box.hidden=!a.length;if(!a.length)return;
+  var nd=s.latest&&s.latest.netDifficulty;
+  a.slice().reverse().slice(0,8).forEach(function(x){var r=document.createElement('div');r.style.cssText='display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:4px 0;border-bottom:1px solid var(--line)';
+    var l=document.createElement('span');l.textContent=x.diff+' · '+ago(Math.max(0,s.now-x.t));
+    var rr=document.createElement('span');rr.style.color='var(--mute)';rr.textContent=nd?'1 in '+hnum(nd/x.v,1)+' of a block':'';
+    r.appendChild(l);r.appendChild(rr);box.appendChild(r)})
+}
 function chart(el,pts,opt){
   el.textContent='';
   if(!pts||pts.length<2){var e=document.createElement('div');e.className='empty';e.textContent='collecting data…';el.appendChild(e);return}
@@ -424,7 +499,7 @@ function render(s){
    ['Node memory',l.resources&&l.resources.memBytes!=null?hb(l.resources.memBytes):'–',l.resources&&l.resources.cpuPct!=null?l.resources.cpuPct.toFixed(0)+'% CPU':''],
    ['Disk free',l.resources&&l.resources.diskFree!=null?hb(l.resources.diskFree):'–',l.resources&&l.resources.diskTotal!=null?'of '+hb(l.resources.diskTotal):'']
   ].forEach(function(r){g.appendChild(stat(r[0],r[1],r[2]))});
-  renderStack(l,s,synced,pct);renderOdds(l,s);renderTemplates(l,synced);renderClient(l);
+  renderStack(l,s,synced,pct);renderOdds(l,s);renderTemplates(l,synced);renderClient(l);renderFees(l);renderBlocks(l,s);renderShares(s);
   var bx=l.bitaxe,bg=$('bx');bg.textContent='';$('bxh').hidden=!bx;
   if(bx&&!bx.online){bg.appendChild(stat('Bitaxe','Offline','not answering on the network'))}
   else if(bx){
