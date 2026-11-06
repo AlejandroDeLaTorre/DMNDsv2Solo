@@ -19,6 +19,8 @@ function sanitizeServices(s) {
     tp: bool(s.tp),
     client: bool(s.client),
     miners: m === null ? null : Math.max(0, Math.min(1000, Math.floor(m))),
+    tpUptime: num(s.tpUptime),
+    clientUptime: num(s.clientUptime),
   };
 }
 
@@ -66,6 +68,7 @@ function sanitize(body) {
     version: str(body.version),
     uptime: num(body.uptime),
     services: sanitizeServices(body.services),
+    netDifficulty: num(body.netDifficulty),
     bytesIn: num(body.bytesIn),
     bytesOut: num(body.bytesOut),
     resources: sanitizeRes(body.resources),
@@ -164,6 +167,16 @@ nav button[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
 h2.sec{font-size:13px;margin:18px 0 0;color:var(--mute);text-transform:uppercase;letter-spacing:.05em}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;background:var(--mute);vertical-align:middle}
 .dot.on{background:var(--ok)}.dot.off{background:var(--bar);box-shadow:inset 0 0 0 1px var(--mute)}
+.story{margin:12px 0;padding:14px 16px;border-left:4px solid var(--accent);line-height:1.55}
+.story.ok{border-left-color:var(--ok)}.story.bad{border-left-color:var(--bad)}
+.flowl{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:6px}
+.fn{flex:1 1 150px;min-width:140px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.fn .t{font-weight:650;font-size:14px}.fn .m{font-size:20px;font-weight:650;margin-top:4px;word-break:break-word}
+.fn .s{font-size:12px;color:var(--mute);margin-top:2px}.fn.ext{border-style:dashed}
+.fa{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mute);font-size:11px;min-width:50px;text-align:center}
+.fa b{font-size:22px;line-height:1}.fa.live b{color:var(--ok)}.fa.dead b{color:var(--bad)}
+.note{color:var(--mute);font-size:12px;margin:6px 2px 0}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
 .chart h2{font-size:14px;margin:0 0 8px}
 svg{width:100%;height:auto;display:block}
@@ -189,7 +202,14 @@ footer{margin-top:24px;color:var(--mute);font-size:12px}
   </div>
   <div class="grid" id="stats"></div>
   <h2 class="sec">Mining stack</h2>
-  <div class="grid" id="stack"></div>
+  <div class="card story" id="story">loading&hellip;</div>
+  <div class="flowl">Hash flow &middot; work your miner does</div>
+  <div class="flow" id="flowA"></div>
+  <div class="flowl">Template flow &middot; the block your own node builds</div>
+  <div class="flow" id="flowB"></div>
+  <h2 class="sec" id="oddsh" hidden>Block odds</h2>
+  <div class="grid" id="odds"></div>
+  <div class="note" id="oddsnote" hidden></div>
   <h2 class="sec" id="bxh" hidden>Bitaxe</h2>
   <div class="grid" id="bx"></div>
   <div class="charts">
@@ -227,6 +247,62 @@ function dstr(t){return t?new Date(t*1000).toISOString().slice(0,10):'–'}
 function hb(b){if(b==null)return '–';var u=['B','KB','MB','GB','TB'],i=0;while(b>=1024&&i<4){b/=1024;i++}return b.toFixed(i>1?1:0)+' '+u[i]}
 function nets(o){if(!o)return '–';var k=Object.keys(o);if(!k.length)return '–';return k.map(function(n){return n+' '+o[n]}).join(' · ')}
 function hrate(g){return g==null?'–':g>=1000?(g/1000).toFixed(2)+' TH/s':g.toFixed(0)+' GH/s'}
+function fnode(title,state,main,sub,ext){var d=document.createElement('div');d.className='fn'+(ext?' ext':'');
+  var t=document.createElement('div');t.className='t';
+  var dot=document.createElement('span');dot.className='dot '+(state===true?'on':state===false?'off':'');
+  t.appendChild(dot);t.appendChild(document.createTextNode(title));d.appendChild(t);
+  var m=document.createElement('div');m.className='m';m.textContent=main;d.appendChild(m);
+  if(sub){var s=document.createElement('div');s.className='s';s.textContent=sub;d.appendChild(s)}
+  return d}
+function farrow(label,st){var d=document.createElement('div');d.className='fa '+(st||'');
+  var b=document.createElement('b');b.textContent='→';d.appendChild(b);
+  var s=document.createElement('span');s.textContent=label;d.appendChild(s);return d}
+function hnum(n,dp){if(n==null||!isFinite(n))return '–';dp=dp==null?2:dp;var u=[[1e21,'Z'],[1e18,'E'],[1e15,'P'],[1e12,'T'],[1e9,'G'],[1e6,'M'],[1e3,'K']];for(var i=0;i<u.length;i++){if(n>=u[i][0])return (n/u[i][0]).toFixed(dp)+' '+u[i][1]}return n.toFixed(0)}
+function parseDiff(s){if(s==null)return null;var m=/^([0-9.]+)\s*([KMGTPE]?)$/i.exec(String(s).trim());if(!m)return null;var f={'':1,K:1e3,M:1e6,G:1e9,T:1e12,P:1e15,E:1e18}[m[2].toUpperCase()];return parseFloat(m[1])*f}
+function years(sec){var y=sec/31557600;if(y>=1e9)return (y/1e9).toFixed(1)+' billion years';if(y>=1e6)return (y/1e6).toFixed(1)+' million years';if(y>=1e3)return Math.round(y).toLocaleString('en-US')+' years';if(y>=1)return y.toFixed(1)+' years';return Math.max(1,Math.round(sec/86400))+' days'}
+function renderStack(l,s,synced,pct){
+  var sv=l.services,bx=l.bitaxe,A=$('flowA'),B=$('flowB'),st=$('story');A.textContent='';B.textContent='';
+  if(!sv){st.textContent='No mining stack data reported yet.';return}
+  var hashing=!!(bx&&bx.online&&bx.hashrate>0),msg,cls='';
+  if(!sv.ipc){msg='The node is not running in multiprocess mode, so sv2-tp cannot attach to it.';cls='bad'}
+  else if(!sv.tp){msg='sv2-tp is not running, so the DMND client has no block templates from your node.';cls='bad'}
+  else if(!synced){msg='The node is still syncing ('+(pct==null?'0':pct.toFixed(1))+'%). sv2-tp is running but cannot build block templates until the node reaches the chain tip, so the DMND client has nothing to declare to the pool and the Bitaxe stays idle. Mining starts by itself once the sync finishes.'}
+  else if(!sv.client){msg='The node is synced and sv2-tp is serving templates, but the DMND client is not running.';cls='bad'}
+  else if(!sv.miners){msg='The whole stack is ready. Waiting for a miner to connect to the DMND client.'}
+  else if(hashing){msg='Mining: the Bitaxe is hashing at '+hrate(bx.hashrate)+' on block templates built by your own node and declared to the pool through the DMND client.';cls='ok'}
+  else{msg='A miner is connected. Waiting for the first work and shares.'}
+  st.textContent=msg;st.className='card story '+cls;
+  var cl=fnode('DMND client',sv.client,sv.client?'Up':'Down',sv.client?(sv.clientUptime!=null?'running '+dur(sv.clientUptime)+' · ':'')+fmt(sv.miners)+' miner'+(sv.miners===1?'':'s'):'not running');
+  A.appendChild(fnode('Bitaxe',bx?bx.online:null,bx?(bx.online?hrate(bx.hashrate):'Offline'):'not monitored',bx&&bx.online&&bx.accepted!=null?fmt(bx.accepted)+' shares accepted':''));
+  A.appendChild(farrow('Stratum V1',sv.client?(sv.miners?'live':''):'dead'));
+  A.appendChild(cl);
+  A.appendChild(farrow('Stratum V2',''));
+  A.appendChild(fnode('DMND pool',null,'external','not monitored from here',true));
+  B.appendChild(fnode('Bitcoin node',true,synced?'Synced':(pct==null?'0':pct.toFixed(1))+'%',fmt(l.blocks)+' of '+fmt(l.headers)+' blocks'));
+  B.appendChild(farrow('IPC',sv.ipc?'live':'dead'));
+  B.appendChild(fnode('sv2-tp',sv.tp,sv.tp?(synced?'Serving templates':'Waiting for sync'):'Down',sv.tpUptime!=null?'running '+dur(sv.tpUptime):''));
+  B.appendChild(farrow('Templates',sv.tp?(synced?'live':''):'dead'));
+  B.appendChild(fnode('Job declaration',null,sv.tp&&sv.client&&synced?'Ready':'Waiting',sv.tp&&sv.client&&synced?'your templates go to the pool':'needs a synced node',true));
+}
+function renderOdds(l,s){
+  var g=$('odds'),hd=$('oddsh'),nt=$('oddsnote');g.textContent='';
+  var bx=l.bitaxe,nd=l.netDifficulty;
+  hd.hidden=!bx||!nd;nt.hidden=hd.hidden;if(hd.hidden)return;
+  var hr=bx.online&&bx.hashrate>0?bx.hashrate:0;
+  if(!hr){for(var i=s.history.length-1;i>=0;i--){var v=s.history[i].hr;if(v>0){hr=v;break}}}
+  var netH=nd*4294967296/600,assumed=false;
+  g.appendChild(stat('Network hashrate',hnum(netH)+'H/s','from difficulty '+hnum(nd)));
+  if(!hr){hr=1200;assumed=true}
+  var mine=hr*1e9,share=mine/netH,reward=50/Math.pow(2,Math.floor((l.headers||0)/210000));
+  var secs=nd*4294967296/mine,sats=share*144*reward*1e8,best=parseDiff(bx.bestDiff);
+  [['Your hashrate',hrate(hr),assumed?'assumed, typical Gamma':'Bitaxe'],
+   ['Your share','1 in '+hnum(1/share,1),'of all network hashrate'],
+   ['Time to a block',years(secs),'expected, on average'],
+   ['Expected per day',(sats<10?sats.toFixed(1):Math.round(sats))+' sats','if mining solo, before pool fees'],
+   ['Best share',bx.bestDiff||'–',best&&nd?'1 in '+hnum(nd/best,1)+' of a block':'']
+  ].forEach(function(r){g.appendChild(stat(r[0],r[1],r[2]))});
+  nt.textContent=(assumed?'The Bitaxe is not hashing yet, so these use an assumed 1.2 TH/s. ':'')+'Estimates use the best known network difficulty and a block reward of '+reward+' BTC, ignoring fees. A pool pays by shares, so real earnings are smoother than this.';
+}
 function stat(k,v,s){var d=document.createElement('div');d.className='card stat';
   var a=document.createElement('div');a.className='k';a.textContent=k;
   var b=document.createElement('div');b.className='v';b.textContent=v;
@@ -291,18 +367,7 @@ function render(s){
    ['Node memory',l.resources&&l.resources.memBytes!=null?hb(l.resources.memBytes):'–',l.resources&&l.resources.cpuPct!=null?l.resources.cpuPct.toFixed(0)+'% CPU':''],
    ['Disk free',l.resources&&l.resources.diskFree!=null?hb(l.resources.diskFree):'–',l.resources&&l.resources.diskTotal!=null?'of '+hb(l.resources.diskTotal):'']
   ].forEach(function(r){g.appendChild(stat(r[0],r[1],r[2]))});
-  var sv=l.services,sk=$('stack');sk.textContent='';
-  if(sv){
-    var wait=!synced;
-    [['Node IPC',sv.ipc,'multiprocess node','not enabled'],
-     ['Template provider',sv.tp,wait?'running, waiting for sync':'serving templates','not running'],
-     ['DMND client',sv.client,'accepting miners','not running']
-    ].forEach(function(r){
-      var c=stat(r[0],'',r[1]?r[2]:r[3]);
-      var v=c.querySelector('.v'),d=document.createElement('span');d.className='dot '+(r[1]?'on':'off');
-      v.appendChild(d);v.appendChild(document.createTextNode(r[1]?'Up':'Down'));sk.appendChild(c)});
-    sk.appendChild(stat('Miners connected',sv.client?fmt(sv.miners):'–',sv.client?'on the DMND client':'client not running'));
-  }
+  renderStack(l,s,synced,pct);renderOdds(l,s);
   var bx=l.bitaxe,bg=$('bx');bg.textContent='';$('bxh').hidden=!bx;
   if(bx&&!bx.online){bg.appendChild(stat('Bitaxe','Offline','not answering on the network'))}
   else if(bx){

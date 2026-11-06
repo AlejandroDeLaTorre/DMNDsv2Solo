@@ -57,7 +57,31 @@ def services():
         "tp": tp_up,
         "client": client_up,
         "miners": miners,
+        "tpUptime": proc_uptime(["pgrep", "-x", "sv2-tp"]),
+        "clientUptime": proc_uptime(["pgrep", "-f", "^./dmnd-client-linux"]),
     }
+
+
+def proc_uptime(pgrep_cmd):
+    """Seconds since the matching process started, or None if it isn't running."""
+    try:
+        pid = subprocess.run(pgrep_cmd, capture_output=True, text=True, timeout=5).stdout.split()
+        if not pid:
+            return None
+        et = subprocess.run(["ps", "-o", "etimes=", "-p", pid[0]], capture_output=True, text=True, timeout=5).stdout.strip()
+        return int(et) if et else None
+    except Exception:
+        return None
+
+
+def net_difficulty():
+    """Difficulty of the best known header, i.e. the current network difficulty even mid-sync."""
+    try:
+        tips = rpc("getchaintips")
+        best = max(tips, key=lambda t: t.get("height", 0))
+        return rpc("getblockheader", best["hash"]).get("difficulty")
+    except Exception:
+        return None
 
 
 def bitaxe(url):
@@ -145,6 +169,7 @@ def main():
         "version": net.get("subversion", "").strip("/"),
         "uptime": uptime,
         "services": services(),
+        "netDifficulty": net_difficulty(),
         "bytesIn": totals.get("totalbytesrecv"),
         "bytesOut": totals.get("totalbytessent"),
         "resources": node_resources(),
