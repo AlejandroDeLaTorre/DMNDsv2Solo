@@ -340,6 +340,86 @@ def final_templates(limit=12):
     return out[-limit:]
 
 
+MEMPOOL_API = "https://mempool.space/api/v1"  # public data, no key; a handful of requests every 2 minutes
+POOLNAMES_CACHE = os.path.expanduser("~/.cache/btc-dashboard-poolnames.json")
+
+
+def ms_get(path):
+    req = urllib.request.Request(MEMPOOL_API + path, headers={"User-Agent": "btc-dashboard-collector/1"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return json.load(r)
+    except Exception:
+        return None
+
+
+def pool_names():
+    """Pool id -> name from mempool.space, refreshed once a day."""
+    try:
+        with open(POOLNAMES_CACHE) as f:
+            c = json.load(f)
+        if time.time() - c.get("t", 0) < 86400:
+            return {int(k): v for k, v in c["names"].items()}
+    except Exception:
+        pass
+    raw = ms_get("/mining/pools")
+    names = {}
+    if isinstance(raw, list):
+        for x in raw:
+            if isinstance(x, dict) and isinstance(x.get("unique_id"), int) and isinstance(x.get("name"), str):
+                names[x["unique_id"]] = x["name"]
+    if names:
+        try:
+            os.makedirs(os.path.dirname(POOLNAMES_CACHE), exist_ok=True)
+            json.dump({"t": time.time(), "names": names}, open(POOLNAMES_CACHE, "w"))
+        except OSError:
+            pass
+    return names
+
+
+def ms_next_block(blocks):
+    """mempool.space's projected next block and how many blocks of backlog it sees."""
+    if not (isinstance(blocks, list) and blocks and isinstance(blocks[0], dict)):
+        return None
+    b = blocks[0]
+    fees, vsize = b.get("totalFees"), b.get("blockVSize")
+    return {"tx": b.get("nTx"), "fees": fees, "vsize": vsize, "median": b.get("medianFee"),
+            "avg": round(fees / vsize, 3) if fees is not None and vsize else None, "backlog": len(blocks)}
+
+
+def ms_accelerations(active, history):
+    """Counts and totals for the accelerator market. No txids."""
+    out = {"active": len(active) if isinstance(active, list) else None}
+    rows = [r for r in history if isinstance(r, dict)] if isinstance(history, list) else []
+    if rows:
+        names = pool_names()
+        mined = {}
+        for r in rows:
+            n = names.get(r.get("minedByPoolUniqueId"), "Other")
+            mined[n] = mined.get(n, 0) + 1
+        added = [r["added"] for r in rows if isinstance(r.get("added"), (int, float))]
+        out.update({
+            "done": len(rows),
+            "feeDelta": sum(r.get("feeDelta") or 0 for r in rows),
+            "bid": sum(r.get("bidBoost") or 0 for r in rows),
+            "span": round((time.time() - min(added)) / 3600, 1) if added else None,
+            "pools": max(len(r.get("pools") or []) for r in rows),
+            "minedBy": dict(sorted(mined.items(), key=lambda kv: -kv[1])[:6]),
+        })
+    return out
+
+
+def mempool_space():
+    """What mempool.space shows publicly: its projected next block, fee tiers and accelerations."""
+    nxt = ms_next_block(ms_get("/fees/mempool-blocks"))
+    rec = ms_get("/fees/recommended")
+    acc = ms_accelerations(ms_get("/services/accelerator/accelerations"),
+                           ms_get("/services/accelerator/accelerations/history?status=completed"))
+    if nxt is None and not isinstance(rec, dict) and acc.get("active") is None:
+        return None
+    return {"next": nxt, "rec": numeric_scalars(rec, 6) if isinstance(rec, dict) else None, "acc": acc}
+
+
 def load_env_file(path):
     cfg = {}
     with open(path) as f:
@@ -627,6 +707,7 @@ def main():
         "policy": policy(mem),
         "txtypes": tx_types(recent) if chain.get("initialblockdownload") is False else None,
         "final": final_templates(),
+        "ms": mempool_space(),
         "dmnd": dmnd_client(chain.get("initialblockdownload") is False),
     }
     req = urllib.request.Request(

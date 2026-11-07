@@ -71,6 +71,26 @@ function sanitizeFinal(f) {
     .map((x) => ({ height: num(x.height), fees: num(x.fees), txCount: num(x.txCount), fullness: num(x.fullness), age: num(x.age) }));
 }
 
+function sanitizeMs(m) {
+  if (!m || typeof m !== "object") return null;
+  const n = m.next && typeof m.next === "object"
+    ? { tx: num(m.next.tx), fees: num(m.next.fees), vsize: num(m.next.vsize), median: num(m.next.median),
+        avg: num(m.next.avg), backlog: num(m.next.backlog) } : null;
+  const a = m.acc && typeof m.acc === "object" ? m.acc : {};
+  const mined = {};
+  if (a.minedBy && typeof a.minedBy === "object") {
+    for (const [k, v] of Object.entries(a.minedBy)) {
+      if (Object.keys(mined).length >= 6) break;
+      if (/^[A-Za-z0-9 ._-]{1,32}$/.test(k) && num(v) !== null) mined[k] = v;
+    }
+  }
+  return {
+    next: n, rec: numMap(m.rec, 6),
+    acc: { active: num(a.active), done: num(a.done), feeDelta: num(a.feeDelta), bid: num(a.bid),
+           span: num(a.span), pools: num(a.pools), minedBy: mined },
+  };
+}
+
 function declaredFees(d) {
   if (!d || !d.templates) return null;
   const x = d.templates.find((t) => t.declared === true);
@@ -166,6 +186,7 @@ function sanitize(body) {
     policy: sanitizePolicy(body.policy),
     txtypes: sanitizeTxTypes(body.txtypes),
     final: sanitizeFinal(body.final),
+    ms: sanitizeMs(body.ms),
   };
 }
 
@@ -416,6 +437,9 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
   <p class="lead" id="vsnote"></p>
   <div class="kpis" id="vsk"></div>
   <div class="card" id="vs"></div>
+  <h3 class="sub3">What mempool.space sees <span class="tag">public data</span></h3>
+  <p class="lead" id="msnote"></p>
+  <div class="charts" id="msg"></div>
 
   <h2 class="sec">DMND client <span class="tag t">Stratum V2 proxy</span></h2>
   <p class="lead">Runs on this laptop. Speaks Stratum V1 to the Bitaxe, Stratum V2 to the pool, and Template Distribution to sv2-tp.</p>
@@ -657,6 +681,39 @@ function renderVs(s){
     box.appendChild(r)});
   box.appendChild(el('div','note','My side is the last template my client declared before the block was found, recorded within 2 seconds. Its age is how long it had been in use when the block arrived. A real block can also include transactions its miner received privately or was paid to add outside the mempool.'));
 }
+/* ---------- mempool.space ---------- */
+function renderMs(st,l){
+  var g=$('msg'),nt=$('msnote'),m=l.ms;g.textContent='';
+  nt.textContent='mempool.space is the most used public view of the Bitcoin mempool. These cards line it up with what my own node builds, and show the paid fee-boost market that the DMND client reads.';
+  if(!m){g.appendChild(el('div','card empty','No mempool.space data yet'));return}
+  var n=m.next,d=st.decl||(st.t&&st.t[0]),c1=el('div','card');
+  c1.appendChild(el('div','k','Next block: my template vs mempool.space'));
+  if(n&&d){
+    var mx;
+    function pair(title,a,b,f){mx=Math.max(a||0,b||0);c1.appendChild(el('div','note',title));
+      [['My node',a,''],['mempool.space',b,'g']].forEach(function(q){var row=el('div','vl');row.appendChild(el('span','lbl',q[0]));var bar=el('div','bar'),i=el('i',q[2]);i.style.width=(mx&&q[1]?q[1]/mx*100:0)+'%';bar.appendChild(i);row.appendChild(bar);row.appendChild(el('span','val',q[1]==null?'–':f(q[1])));c1.appendChild(row)})}
+    pair('Fees',d.fees,n.fees,function(v){return fmt(Math.round(v))+' sats'});
+    pair('Transactions',d.txCount,n.tx,fmt);
+    pair('Average fee rate',d.feeRate,n.avg,function(v){return v.toFixed(2)+' sat/vB'});
+    var r=m.rec||{},sug=r.fastestFee!=null?'mempool.space suggests '+r.fastestFee+' sat/vB for the next block. ':'';
+    c1.appendChild(el('div','note',sug+'Both numbers are snapshots a moment apart, and each node sees a slightly different set of transactions, so some gap is normal. mempool.space projects '+n.backlog+(n.backlog>=8?' or more':'')+' blocks of waiting transactions.'));
+  }else c1.appendChild(el('div','empty','Waiting for a template or for mempool.space'));
+  g.appendChild(c1);
+  var a=m.acc||{},c2=el('div','card');c2.appendChild(el('div','k','Paid fee boosts (accelerations)'));
+  c2.appendChild(el('div','big2',a.active==null?'–':fmt(a.active)+' active now'));
+  var dcAcc=d&&d.accel!=null?d.accel:null;
+  c2.appendChild(el('div','note','In my template right now: '+(dcAcc==null?'–':fmt(dcAcc))+' boosted transactions'));
+  if(a.done){
+    var mini=el('div','mini');
+    [['Completed',fmt(a.done)+(a.span?' in '+Math.round(a.span)+' h':'')],['Boost value',sats(a.feeDelta)],['Pools taking part',fmt(a.pools)]].forEach(function(q){var x=el('div');x.appendChild(el('div','k',q[0]));x.appendChild(el('div','v',q[1]));mini.appendChild(x)});
+    c2.appendChild(mini);
+    c2.appendChild(el('div','note','Who mined the latest boosted transactions'));
+    var by=a.minedBy||{},ks=Object.keys(by),top=Math.max.apply(null,ks.map(function(k){return by[k]}));
+    ks.forEach(function(k){var row=el('div','mx'),h=el('div','r');h.appendChild(el('span',null,k));h.appendChild(el('b',null,String(by[k])));row.appendChild(h);var bar=el('div','bar'),i=el('i');i.style.width=(top?by[k]/top*100:0)+'%';bar.appendChild(i);row.appendChild(bar);c2.appendChild(row)});
+  }
+  c2.appendChild(el('div','note','Someone with a stuck transaction pays mempool.space to move it to the front, and pools in the program include it. The DMND client reads the same list, so boosted transactions reach my templates by themselves. I cannot see whether the DMND pool is paid for them.'));
+  g.appendChild(c2);
+}
 var KIND={opreturn:['OP_RETURN data','extra data in an output, up to 100 KB per transaction'],
   inscription:['Inscriptions','data in a Taproot witness envelope (ordinals)'],
   anchor:['Pay-to-anchor','tiny anchor outputs used to bump fees (Lightning, TRUC)'],
@@ -854,7 +911,7 @@ function render(s){
   $('statustxt').textContent=txt;
   $('meta').textContent='Bitcoin Core '+(l.version||'').replace(/^Satoshi:/,'v')+' · sv2-tp · DMND client · Bitaxe Gamma · updated '+ago(st.age);
   renderStory(st);renderDiagram(st);renderKpis(st,s);renderBlock(st);renderClient(st);renderBitaxe(st);
-  renderVs(s);renderPolicy(l);renderMix(l);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
+  renderVs(s);renderMs(st,l);renderPolicy(l);renderMix(l);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
   var h=s.history,day=s.now-86400;
   chart($('c7'),series(h,'tf',day).map(function(p){return[p[0],p[1]/1e6]}),{fmt:function(v){return v.toFixed(2)}});
   chart($('c9'),series(h,'ad',day),{fmt:function(v){return fmt(Math.round(v))},zero:true});
