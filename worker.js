@@ -90,6 +90,31 @@ function parseDiff(s) {
   return parseFloat(m[1]) * f;
 }
 
+const KINDS = ["opreturn", "inscription", "baremultisig", "dust", "truc", "anchor", "big", "nonstandardout"];
+
+function sanitizeKinds(o) {
+  if (!o || typeof o !== "object") return null;
+  const counts = {};
+  for (const k of KINDS) counts[k] = num(o.counts && o.counts[k]);
+  return { total: num(o.total), counts, opretBytes: num(o.opretBytes), height: num(o.height) };
+}
+
+function sanitizeTxTypes(t) {
+  if (!t || typeof t !== "object") return null;
+  return {
+    mempool: sanitizeKinds(t.mempool),
+    blocks: Array.isArray(t.blocks) ? t.blocks.slice(0, 6).map(sanitizeKinds).filter(Boolean) : [],
+  };
+}
+
+function sanitizePolicy(p) {
+  if (!p || typeof p !== "object") return null;
+  const out = {};
+  for (const k of ["minrelaytxfee", "dustrelayfee", "datacarriersize", "bytespersigop", "maxmempool", "limitclustercount", "limitclustersize"]) out[k] = num(p[k]);
+  for (const k of ["permitbaremultisig", "acceptnonstdtxn"]) out[k] = bool(p[k]);
+  return out;
+}
+
 function sanitizeRes(r) {
   if (!r || typeof r !== "object") return null;
   return { memBytes: num(r.memBytes), cpuPct: num(r.cpuPct), diskFree: num(r.diskFree), diskTotal: num(r.diskTotal) };
@@ -130,6 +155,8 @@ function sanitize(body) {
     dmnd: sanitizeDmnd(body.dmnd),
     fees: sanitizeFees(body.fees),
     recent: sanitizeRecent(body.recent),
+    policy: sanitizePolicy(body.policy),
+    txtypes: sanitizeTxTypes(body.txtypes),
   };
 }
 
@@ -326,6 +353,15 @@ footer{margin-top:28px;color:var(--mute);font-size:12px}
 .vl .lbl{width:88px;color:var(--mute);flex:none}.vl .bar{flex:1;margin:0;height:10px}.vl .val{width:86px;text-align:right;flex:none}
 .bar>i.g{background:var(--mute)}
 .tagline{display:inline-block;margin-top:6px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:6px}
+.pr{display:grid;grid-template-columns:1fr auto auto;gap:2px 12px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.pr:last-child{border-bottom:0}.pr .d{grid-column:1/-1;color:var(--mute);font-size:12px}
+.pr .mv{font-weight:650;text-align:right}.pr .dv{color:var(--mute);text-align:right;font-size:12px}
+.badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:1px 6px;border-radius:99px;margin-left:6px;vertical-align:middle}
+.badge.p{background:var(--hash-soft);color:var(--hash)}.badge.s{background:var(--accent-soft);color:var(--accent)}.badge.x{background:var(--bar);color:var(--mute)}
+.mx{margin:8px 0}.mx .r{display:flex;justify-content:space-between;font-size:13px}.mx .bar{height:8px;margin:4px 0 0}
+table.hm{border-collapse:collapse;width:100%;font-size:12px;margin-top:8px;min-width:520px}
+table.hm th{color:var(--mute);font-weight:600;text-align:right;padding:4px 6px}table.hm th:first-child,table.hm td:first-child{text-align:left}
+table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
 [hidden]{display:none!important}
 </style></head><body><div class="wrap">
 <header>
@@ -385,6 +421,14 @@ footer{margin-top:28px;color:var(--mute);font-size:12px}
     <div class="card"><div class="k">Best shares found</div><div class="feed" id="sf"></div></div>
     <div class="card"><div class="k">Odds of finding a block</div><div class="grid" id="odds" style="grid-template-columns:repeat(2,1fr);margin-bottom:4px"></div><div class="note" id="oddsnote"></div></div>
   </div>
+
+  <h2 class="sec">What my node accepts <span class="tag t">Relay policy</span></h2>
+  <p class="lead">With Stratum V2 my own node picks the transactions in my block, so its relay policy decides what can be mined. Bitcoin Core does not allow truly non-standard transactions on mainnet, but its defaults already accept most edge cases.</p>
+  <div class="two">
+    <div class="card"><div class="k">Policy &middot; mine vs Bitcoin Core default</div><div id="pol"></div></div>
+    <div class="card"><div class="k">What is in my mempool</div><div id="mix"></div></div>
+  </div>
+  <div class="card"><div class="k">Transaction types in recent blocks</div><div id="mixb" style="overflow-x:auto"></div></div>
 
   <div class="under">
     <h2 class="sec">Bitcoin node <span class="tag n">Under the hood</span></h2>
@@ -597,6 +641,53 @@ function renderVs(s){
     box.appendChild(r)});
   box.appendChild(el('div','note','My side is the last template the dashboard recorded, up to 2 minutes before the block was found, so it can miss the newest transactions. A real block can also include transactions its miner was paid to add outside the mempool.'));
 }
+var KIND={opreturn:['OP_RETURN data','extra data in an output, up to 100 KB per transaction'],
+  inscription:['Inscriptions','data in a Taproot witness envelope (ordinals)'],
+  anchor:['Pay-to-anchor','tiny anchor outputs used to bump fees (Lightning, TRUC)'],
+  truc:['TRUC (v3)','version 3 transactions with simple fee-bumping rules'],
+  baremultisig:['Bare multisig','multisig output without a P2SH wrapper'],
+  dust:['Dust outputs','outputs worth less than it costs to spend them'],
+  big:['Large (20 kvB+)','unusually big transactions'],
+  nonstandardout:['Non-standard outputs','scripts Core would not normally relay']};
+var KORDER=['opreturn','inscription','anchor','truc','baremultisig','dust','big','nonstandardout'];
+function renderPolicy(l){
+  var box=$('pol'),p=l.policy;box.textContent='';
+  if(!p){box.appendChild(el('div','note','No policy data yet.'));return}
+  var rows=[['minrelaytxfee','Minimum relay fee','sat/vB',0.1,-1,'cheapest fee rate accepted'],
+    ['dustrelayfee','Dust threshold fee','sat/vB',3,-1,'0 accepts dust outputs'],
+    ['datacarriersize','OP_RETURN data limit','bytes',100000,1,'per transaction, several outputs allowed'],
+    ['permitbaremultisig','Bare multisig',null,true,1,'accept multisig without P2SH'],
+    ['bytespersigop','Bytes per sigop','',20,-1,'lower accepts sigop-heavy transactions'],
+    ['maxmempool','Mempool size','MB',300,1,'memory set aside for unconfirmed transactions'],
+    ['limitclustercount','Cluster limit','txs',64,1,'max connected unconfirmed transactions'],
+    ['acceptnonstdtxn','Non-standard transactions',null,false,1,'test networks only in Bitcoin Core']];
+  function show(v,u){return typeof v==='boolean'?(v?'yes':'no'):v==null?'–':fmt(v)+(u?' '+u:'')}
+  rows.forEach(function(r){var v=p[r[0]],d=el('div','pr');
+    var name=el('span',null,r[1]),badge;
+    if(r[0]==='acceptnonstdtxn')badge=el('span','badge x','mainnet: off');
+    else if(v===r[3]||v==null)badge=el('span','badge x','default');
+    else{var more=typeof v==='boolean'?v:(r[4]>0?v>r[3]:v<r[3]);badge=el('span','badge '+(more?'p':'s'),more?'more open':'stricter')}
+    name.appendChild(badge);d.appendChild(name);d.appendChild(el('span','mv',show(v,r[2])));d.appendChild(el('span','dv','default '+show(r[3],r[2])));
+    d.appendChild(el('span','d',r[5]));box.appendChild(d)});
+}
+function renderMix(l){
+  var box=$('mix'),hb2=$('mixb'),t=l.txtypes;box.textContent='';hb2.textContent='';
+  if(!t||!t.mempool||!t.mempool.total){box.appendChild(el('div','note','Scanning the mempool. Results appear after the next update.'));hb2.appendChild(el('div','note','Appears once blocks are scanned.'));return}
+  var m=t.mempool;box.appendChild(el('div','note',fmt(m.total)+' transactions checked · '+hb(m.opretBytes)+' of OP_RETURN data waiting'));
+  KORDER.forEach(function(k){var c=m.counts[k]||0,pc=c/m.total*100,r=el('div','mx'),top=el('div','r');
+    var nm=el('span',null,KIND[k][0]);top.appendChild(nm);top.appendChild(el('b',null,fmt(c)+' · '+(pc<1&&c?pc.toFixed(2):pc.toFixed(0))+'%'));r.appendChild(top);
+    var bar=el('div','bar'),i=el('i');i.style.width=Math.max(c?1:0,pc)+'%';bar.appendChild(i);r.appendChild(bar);
+    r.appendChild(el('div','note',KIND[k][1]));box.appendChild(r)});
+  if(!t.blocks.length){hb2.appendChild(el('div','note','Appears once blocks are scanned.'));return}
+  var used=KORDER.filter(function(k){return t.blocks.some(function(b){return b.counts[k]})||(m.counts[k]||0)>0});
+  var tb=el('table','hm'),hr=el('tr');hr.appendChild(el('th',null,'Block'));hr.appendChild(el('th',null,'Txs'));
+  used.forEach(function(k){hr.appendChild(el('th',null,KIND[k][0]))});tb.appendChild(hr);
+  t.blocks.forEach(function(b){var tr=el('tr');tr.appendChild(el('td',null,fmt(b.height)));tr.appendChild(el('td',null,fmt(b.total)));
+    used.forEach(function(k){var c=b.counts[k]||0,pc=b.total?c/b.total*100:0,td=el('td',null,c?(pc<0.1?'<0.1':pc<1?pc.toFixed(1):pc.toFixed(0))+'%':'–');
+      if(c)td.style.background='color-mix(in srgb, var(--accent) '+Math.min(60,Math.max(8,pc*.6)).toFixed(0)+'%, transparent)';tr.appendChild(td)});
+    tb.appendChild(tr)});
+  hb2.appendChild(tb);hb2.appendChild(el('div','note','Share of each block\'s transactions (coinbase excluded). One transaction can count in several columns.'));
+}
 function renderClient(st){
   var g=$('cpg'),d=st.d,sv0=st.sv;g.textContent='';
   if(!d){dimmed(g,['Miners connected','Shares accepted','Share difficulty','Declaration latency'],sv0.client?'waiting for client data':'client down');return}
@@ -745,7 +836,7 @@ function render(s){
   $('statustxt').textContent=txt;
   $('meta').textContent='Bitcoin Core '+(l.version||'').replace(/^Satoshi:/,'v')+' · sv2-tp · DMND client · Bitaxe Gamma · updated '+ago(st.age);
   renderStory(st);renderDiagram(st);renderKpis(st,s);renderBlock(st);renderClient(st);renderBitaxe(st);
-  renderVs(s);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
+  renderVs(s);renderPolicy(l);renderMix(l);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
   var h=s.history,day=s.now-86400;
   chart($('c7'),series(h,'tf',day).map(function(p){return[p[0],p[1]/1e6]}),{fmt:function(v){return v.toFixed(2)}});
   chart($('c9'),series(h,'ad',day),{fmt:function(v){return fmt(Math.round(v))},zero:true});

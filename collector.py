@@ -384,6 +384,146 @@ def recent_blocks(tip, count=6):
     return out
 
 
+# ---------- mempool policy and transaction types ----------
+CORE_DEFAULTS = {"minrelaytxfee": 0.1, "dustrelayfee": 3.0, "datacarriersize": 100000, "permitbaremultisig": True,
+                 "bytespersigop": 20, "maxmempool": 300, "limitclustercount": 64, "limitclustersize": 101}
+TXTYPE_CACHE = os.path.expanduser("~/.cache/btc-dashboard-txtypes.json")
+INSCRIPTION_MARK = "0063036f7264"  # OP_FALSE OP_IF "ord": start of an ordinals envelope
+DUST_LIMIT = {"witness_v0_keyhash": 294, "witness_v0_scripthash": 330, "witness_v1_taproot": 330}
+TX_KINDS = ("opreturn", "inscription", "baremultisig", "dust", "truc", "anchor", "big", "nonstandardout")
+
+
+def conf_value(key):
+    """Read one setting from bitcoin.conf. Only the named key is read; rpcauth and the rest are ignored."""
+    try:
+        with open(os.path.expanduser("~/.bitcoin/bitcoin.conf")) as f:
+            for line in f:
+                k, _, v = line.strip().partition("=")
+                if k.strip() == key:
+                    return v.strip()
+    except Exception:
+        pass
+    return None
+
+
+def policy(mem):
+    """This node's relay policy next to Bitcoin Core's defaults (sat/vB for fee rates)."""
+    def f(key, default):
+        v = conf_value(key)
+        try:
+            return float(v) if v is not None else default
+        except ValueError:
+            return default
+    dust = conf_value("dustrelayfee")
+    return {
+        "minrelaytxfee": round(mem.get("minrelaytxfee", 0) * 1e5, 3),
+        "dustrelayfee": round(float(dust) * 1e5, 3) if dust else CORE_DEFAULTS["dustrelayfee"],
+        "datacarriersize": mem.get("maxdatacarriersize"),
+        "permitbaremultisig": mem.get("permitbaremultisig"),
+        "bytespersigop": f("bytespersigop", CORE_DEFAULTS["bytespersigop"]),
+        "maxmempool": round(mem.get("maxmempool", 0) / 1e6),
+        "limitclustercount": mem.get("limitclustercount"),
+        "limitclustersize": round(mem.get("limitclustersize", 0) / 1000) if mem.get("limitclustersize") else None,
+        "acceptnonstdtxn": False,  # not allowed on mainnet in Bitcoin Core
+    }
+
+
+def rpc_batch(calls, chunk=400):
+    """JSON-RPC batch over HTTP with the dmnd rpcauth user, much faster than one bitcoin-cli call per tx."""
+    import base64
+    cfg = load_env_file(DMND_ENV)
+    auth = base64.b64encode(f"{cfg['RPC_USER']}:{cfg['RPC_PWD']}".encode()).decode()
+    out = []
+    for i in range(0, len(calls), chunk):
+        body = [{"jsonrpc": "1.0", "id": i + j, "method": m, "params": p} for j, (m, p) in enumerate(calls[i:i + chunk])]
+        req = urllib.request.Request(cfg.get("RPC_URL", "http://127.0.0.1:8332"), data=json.dumps(body).encode(),
+                                     headers={"Authorization": "Basic " + auth, "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            out.extend(x.get("result") for x in sorted(json.load(r), key=lambda x: x["id"]))
+    return out
+
+
+def classify(tx):
+    """Kinds of a decoded transaction. Only labels leave this function, never txids or scripts."""
+    kinds = set()
+    if tx.get("version") == 3:
+        kinds.add("truc")
+    if (tx.get("vsize") or 0) >= 20000:
+        kinds.add("big")
+    for o in tx.get("vout", []):
+        spk = o.get("scriptPubKey", {})
+        t = spk.get("type")
+        if t == "nulldata":
+            kinds.add("opreturn")
+        elif t == "multisig":
+            kinds.add("baremultisig")
+        elif t == "anchor":
+            kinds.add("anchor")
+        elif t == "nonstandard":
+            kinds.add("nonstandardout")
+        if t not in ("nulldata", "anchor") and round(o.get("value", 0) * 1e8) < DUST_LIMIT.get(t, 546):
+            kinds.add("dust")
+    for i in tx.get("vin", []):
+        if any(INSCRIPTION_MARK in w for w in i.get("txinwitness", [])):
+            kinds.add("inscription")
+            break
+    return sorted(kinds)
+
+
+def opreturn_bytes(tx):
+    return sum(len(o["scriptPubKey"].get("hex", "")) // 2 for o in tx.get("vout", [])
+               if o.get("scriptPubKey", {}).get("type") == "nulldata")
+
+
+def count_kinds(entries):
+    counts = {k: 0 for k in TX_KINDS}
+    for kinds in entries:
+        for k in kinds:
+            counts[k] += 1
+    return counts
+
+
+def tx_types(recent_blocks):
+    """Transaction kinds in the mempool (new txs only are decoded) and in recent blocks (once per block)."""
+    try:
+        cache = json.load(open(TXTYPE_CACHE))
+    except Exception:
+        cache = {}
+    mem = cache.get("mem", {})
+    blocks = {int(k): v for k, v in cache.get("blocks", {}).items()}
+    try:
+        txids = rpc("getrawmempool")
+        live = set(txids)
+        mem = {t: v for t, v in mem.items() if t in live}
+        new = [t for t in txids if t not in mem][:8000]
+        for t, tx in zip(new, rpc_batch([("getrawtransaction", [t, 1]) for t in new])):
+            if tx:
+                mem[t] = [classify(tx), opreturn_bytes(tx)]
+        for b in recent_blocks[:6]:
+            h = b.get("height")
+            if h in blocks:
+                continue
+            blk = rpc_batch([("getblock", [rpc("getblockhash", str(h)), 2])])[0]
+            if blk:
+                txs = blk["tx"][1:]  # skip the coinbase
+                blocks[h] = {"total": len(txs), "counts": count_kinds(classify(t) for t in txs),
+                             "opretBytes": sum(opreturn_bytes(t) for t in txs)}
+        blocks = dict(sorted(blocks.items())[-6:])
+    except Exception as e:
+        print("tx type scan failed:", e, file=sys.stderr)
+    try:
+        os.makedirs(os.path.dirname(TXTYPE_CACHE), exist_ok=True)
+        json.dump({"mem": mem, "blocks": blocks}, open(TXTYPE_CACHE, "w"))
+    except Exception:
+        pass
+    return {
+        "mempool": {"total": len(mem), "counts": count_kinds(v[0] for v in mem.values()),
+                    "opretBytes": sum(v[1] for v in mem.values())},
+        "blocks": [dict(height=h, **v) for h, v in sorted(blocks.items(), reverse=True)],
+        "kinds": list(TX_KINDS),
+    }
+
+
 def node_resources():
     """Aggregate resource use of the node process and its data disk."""
     out = {}
@@ -416,6 +556,7 @@ def main():
         n = str(p.get("network", "unknown"))
         networks[n] = networks.get(n, 0) + 1
 
+    recent = recent_blocks(chain.get("blocks")) if chain.get("initialblockdownload") is False else []
     payload = {
         "chain": chain.get("chain"),
         "blocks": chain.get("blocks"),
@@ -442,7 +583,9 @@ def main():
         "resources": node_resources(),
         "bitaxe": bitaxe(cfg.get("BITAXE_URL")),
         "fees": fee_market(mem.get("size")),
-        "recent": recent_blocks(chain.get("blocks")) if chain.get("initialblockdownload") is False else [],
+        "recent": recent,
+        "policy": policy(mem),
+        "txtypes": tx_types(recent) if chain.get("initialblockdownload") is False else None,
         "dmnd": dmnd_client(chain.get("initialblockdownload") is False),
     }
     req = urllib.request.Request(
