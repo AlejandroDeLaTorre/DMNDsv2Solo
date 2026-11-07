@@ -64,7 +64,7 @@ def services():
         "client": client_up,
         "miners": miners,
         "tpUptime": proc_uptime(["pgrep", "-x", "sv2-tp"]),
-        "clientUptime": proc_uptime(["pgrep", "-f", "^./dmnd-client-linux"]),
+        "clientUptime": proc_uptime(["pgrep", "-x", "dmnd-client"]),
     }
 
 
@@ -208,27 +208,25 @@ def template_list(raw):
     return []
 
 
-def summarise_template(t):
+def summarise_template(t, active_id=None, base_fees=None):
     """Totals for one candidate block. No txids, addresses or transaction lists."""
-    fees = pick(t, "total_fees", "totalFees", "fees", "fee_total", "total_fee")
-    txc = pick(t, "tx_count", "txCount", "transactions", "num_txs", "n_tx", "transaction_count")
-    wt = pick(t, "weight", "total_weight", "block_weight")
-    full = pick(t, "fullness", "fullness_pct", "full_pct", "fill")
-    if full is None and wt is not None:
-        full = wt / BLOCK_WEIGHT * 100
-    elif full is not None and full <= 1:
-        full = full * 100
+    fees = pick(t, "total_fees_sat", "total_fees", "totalFees", "fees")
+    txc = pick(t, "tx_count", "txCount", "transactions")
+    wt = pick(t, "total_weight", "weight", "block_weight")
+    full = wt / BLOCK_WEIGHT * 100 if wt else None
+    tid = pick(t, "template_id")
+    pri = t.get("prioritized_included")
     return {
         "height": pick(t, "height", "block_height"),
         "fees": fees,
         "txCount": txc,
         "fullness": full,
-        "feeRate": pick(t, "fee_rate", "feeRate", "avg_fee_rate", "median_fee_rate", "sat_vb"),
-        "prioritized": pick(t, "prioritized", "prioritised", "prioritized_count", "prioritized_txs"),
-        "declared": pick_bool(t, "declared", "is_declared", "active"),
-        "gained": pick(t, "fees_gained", "feesGained", "gained", "fee_delta"),
-        "coinbase": pick(t, "coinbase_value", "coinbaseValue", "coinbase"),
-        "age": pick(t, "age", "age_seconds", "received_ago"),
+        "feeRate": round(fees / (wt / 4), 2) if fees is not None and wt else None,  # sat per vbyte
+        "prioritized": len(pri) if isinstance(pri, list) else None,
+        "declared": (tid is not None and tid == active_id) if active_id is not None else None,
+        "gained": fees - base_fees if fees is not None and base_fees is not None else None,
+        "coinbase": pick(t, "coinbase_value_sat", "coinbase_value"),
+        "age": None,
     }
 
 
@@ -256,11 +254,19 @@ def dmnd_client(synced):
     raw = client_get("/api/templates/recent", cfg.get("API_TX_TOKEN"))
     if raw is not None:
         schema["templates"] = shape(raw)
-        out["templates"] = [summarise_template(t) for t in template_list(raw)[:3] if isinstance(t, dict)]
+        info = unwrap(raw) if isinstance(unwrap(raw), dict) else {}
+        active = info.get("active_declaration")
+        tl = [t for t in template_list(raw) if isinstance(t, dict)]
+        # "fees gained" = fees compared with the first template received for the same height
+        first = {}
+        for t in sorted(tl, key=lambda x: x.get("received_at") or 0):
+            first.setdefault(t.get("height"), t.get("total_fees_sat"))
+        out["templates"] = [summarise_template(t, active, first.get(t.get("height"))) for t in tl[:3]]
     agg = client_get("/api/stats/aggregate")
     if agg is not None:
         schema["aggregate"] = shape(agg)
         out["stats"] = numeric_scalars(unwrap(agg))
+        out["stats"].pop("aggregate_hashrate", None)  # client estimate, far off the real hashrate right now
     pool = client_get("/api/pool/info")
     if pool is not None:
         schema["pool"] = shape(pool)
