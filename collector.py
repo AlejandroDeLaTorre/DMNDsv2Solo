@@ -241,6 +241,24 @@ def numeric_scalars(d, limit=16):
     return out
 
 
+def miner_tag():
+    """Coinbase tag the client writes, read from its command line (/DMND/<name>/ by default)."""
+    try:
+        pid = subprocess.run(["pgrep", "-x", "dmnd-client"], capture_output=True, text=True, timeout=5).stdout.split()[0]
+        args = open(f"/proc/{pid}/cmdline", "rb").read().decode().split("\0")
+    except Exception:
+        return None
+    def opt(name):
+        for i, a in enumerate(args):
+            if a == name and i + 1 < len(args):
+                return args[i + 1]
+            if a.startswith(name + "="):
+                return a.split("=", 1)[1]
+        return None
+    name = opt("--miner-name")
+    return (opt("--tag-prefix") or "/DMND/") + name + "/" if name else None
+
+
 def dmnd_client(synced):
     """Template summaries and client stats. Returns None when the client API cannot be reached."""
     try:
@@ -250,7 +268,7 @@ def dmnd_client(synced):
     if not wait_for_client_api(35):
         return None
     schema = {}
-    out = {"templates": [], "stats": {}, "pool": {}}
+    out = {"templates": [], "stats": {}, "pool": {}, "tag": miner_tag()}
     raw = client_get("/api/templates/recent", cfg.get("API_TX_TOKEN"))
     if raw is not None:
         schema["templates"] = shape(raw)

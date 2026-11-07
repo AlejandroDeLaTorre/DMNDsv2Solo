@@ -58,6 +58,7 @@ function sanitizeDmnd(d) {
     stats: numMap(d.stats, 16),
     pool: numMap(d.pool, 8),
     activeId: num(d.activeId),
+    tag: typeof d.tag === "string" && /^[A-Za-z0-9 _.\/-]{1,48}$/.test(d.tag) ? d.tag : null,
     policy: typeof d.policy === "string" && /^[a-z_]{1,32}$/.test(d.policy) ? d.policy : null,
   };
 }
@@ -171,6 +172,22 @@ async function handlePush(request, env) {
     state.shares = state.shares.slice(-25);
     state.bestShare = bd;
   }
+  // My declared template per block height, compared with the block that was actually mined.
+  state.mine = state.mine || {};
+  const dc = snap.dmnd && snap.dmnd.templates ? snap.dmnd.templates.find((t) => t.declared === true) : null;
+  if (dc && dc.height) state.mine[dc.height] = { fees: dc.fees, tx: dc.txCount, full: dc.fullness, t: snap.t };
+  state.vs = state.vs || [];
+  for (const b of snap.recent || []) {
+    const m = state.mine[b.height];
+    if (m && b.fees !== null && !state.vs.some((v) => v.h === b.height)) {
+      state.vs.push({ h: b.height, time: b.time, pool: b.pool, mf: m.fees, mt: m.tx, mfull: m.full, mtime: m.t,
+                      rf: b.fees, rt: b.txs, rfull: b.weight ? b.weight / 40000 : null });
+    }
+  }
+  state.vs.sort((a, b) => a.h - b.h);
+  state.vs = state.vs.slice(-30);
+  const keep = Object.keys(state.mine).map(Number).sort((a, b) => b - a).slice(0, 12);
+  for (const k of Object.keys(state.mine)) if (!keep.includes(Number(k))) delete state.mine[k];
   if (state.history.length > MAX_POINTS) state.history = thin(state.history);
   await env.KV.put("state", JSON.stringify(state));
   return new Response("ok");
@@ -302,6 +319,13 @@ h2.sec .tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spaci
 .prog .big{font-size:26px;font-weight:700}
 footer{margin-top:28px;color:var(--mute);font-size:12px}
 @media (max-width:480px){.kpi .v{font-size:21px}h1{font-size:22px}.big2{font-size:26px}}
+.sub3{font-size:16px;margin:24px 0 4px}
+.vsr{padding:12px 0;border-bottom:1px solid var(--line)}
+.vsr .r{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.vl{display:flex;align-items:center;gap:8px;font-size:12px;margin:6px 0}
+.vl .lbl{width:88px;color:var(--mute);flex:none}.vl .bar{flex:1;margin:0;height:10px}.vl .val{width:86px;text-align:right;flex:none}
+.bar>i.g{background:var(--mute)}
+.tagline{display:inline-block;margin-top:6px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:6px}
 [hidden]{display:none!important}
 </style></head><body><div class="wrap">
 <header>
@@ -336,6 +360,10 @@ footer{margin-top:28px;color:var(--mute);font-size:12px}
     <div class="card chart"><h3>Fees in the declared block (million sats)</h3><div id="c7"></div></div>
     <div class="card chart"><h3>Templates declared to the pool</h3><div id="c9"></div></div>
   </div>
+  <h3 class="sub3">My template vs the block that was mined</h3>
+  <p class="lead" id="vsnote"></p>
+  <div class="kpis" id="vsk"></div>
+  <div class="card" id="vs"></div>
 
   <h2 class="sec">DMND client <span class="tag t">Stratum V2 proxy</span></h2>
   <p class="lead">Runs on this laptop. Speaks Stratum V1 to the Bitaxe, Stratum V2 to the pool, and Template Distribution to sv2-tp.</p>
@@ -520,6 +548,7 @@ function renderBlock(st){
   var dc=st.decl||t[0],c1=el('div','card');
   var hd=el('div','blkh');hd.appendChild(el('div','k',dc.declared?'Declared block template':'Latest block template'));hd.appendChild(el('div','k','candidate for the next block'));c1.appendChild(hd);
   c1.appendChild(el('div','big2',dc.height!=null?'Block '+fmt(dc.height):'–'));
+  if(d&&d.tag){var tg=el('div','note','Coinbase tag ');tg.appendChild(el('span','tagline',d.tag));c1.appendChild(tg)}
   function meter(label,val,pct,cls){var m=el('div','mlab');m.appendChild(el('span',null,label));var b=el('b',null,val);m.appendChild(b);c1.appendChild(m);
     var bar=el('div','bar tall'),i=el('i',cls||'');i.style.width=Math.max(0,Math.min(100,pct||0))+'%';bar.appendChild(i);c1.appendChild(bar)}
   meter('Block space used',dc.fullness==null?'–':dc.fullness.toFixed(2)+'%',dc.fullness);
@@ -547,6 +576,27 @@ function renderBlock(st){
 }
 
 /* ---------- DMND client ---------- */
+function renderVs(s){
+  var v=(s.vs||[]).slice().reverse(),box=$('vs'),k=$('vsk'),nt=$('vsnote');box.textContent='';k.textContent='';
+  nt.textContent='When a block is found, the last template my node declared for that height is lined up against the block the network actually mined. Same height, two independent choices of transactions.';
+  if(!v.length){k.hidden=true;box.appendChild(el('div','empty','Waiting for the next block. The first comparison appears after a block is found while the stack is running.'));return}
+  k.hidden=false;
+  var more=0,sum=0;v.forEach(function(x){var d=x.mf-x.rf;if(d>0)more++;sum+=x.rf?d/x.rf*100:0});
+  var avg=sum/v.length;
+  k.appendChild(kpi('Blocks compared',fmt(v.length),'since tracking started','t'));
+  k.appendChild(kpi('Mine paid more',more+' of '+v.length,'my template had higher fees','t'));
+  k.appendChild(kpi('Average difference',(avg>=0?'+':'')+avg.toFixed(1)+'%','my fees vs the real block','t'));
+  var mx=Math.max.apply(null,v.map(function(x){return Math.max(x.mf||0,x.rf||0)}));
+  v.slice(0,8).forEach(function(x){
+    var r=el('div','vsr'),hd=el('div','r');
+    hd.appendChild(el('b',null,'Block '+fmt(x.h)));hd.appendChild(el('span','note',(x.pool?'mined by '+x.pool:'pool unknown')+' · '+ago(Math.max(0,s.now-x.time))));r.appendChild(hd);
+    function line(lbl,val,cls){var row=el('div','vl');row.appendChild(el('span','lbl',lbl));var b=el('div','bar'),i=el('i',cls);i.style.width=(mx&&val?val/mx*100:0)+'%';b.appendChild(i);row.appendChild(b);row.appendChild(el('span','val',btc(val)));r.appendChild(row)}
+    line('My template',x.mf,'');line('Real block',x.rf,'g');
+    var d=(x.mf||0)-(x.rf||0),pc=x.rf?d/x.rf*100:0;
+    r.appendChild(el('div','note',(d>=0?'+':'−')+fmt(Math.abs(Math.round(d)))+' sats ('+(pc>=0?'+':'')+pc.toFixed(1)+'%) · '+fmt(x.mt)+' vs '+fmt(x.rt)+' transactions'));
+    box.appendChild(r)});
+  box.appendChild(el('div','note','My side is the last template the dashboard recorded, up to 2 minutes before the block was found, so it can miss the newest transactions. A real block can also include transactions its miner was paid to add outside the mempool.'));
+}
 function renderClient(st){
   var g=$('cpg'),d=st.d,sv0=st.sv;g.textContent='';
   if(!d){dimmed(g,['Miners connected','Shares accepted','Share difficulty','Declaration latency'],sv0.client?'waiting for client data':'client down');return}
@@ -558,6 +608,7 @@ function renderClient(st){
   g.appendChild(stat('Templates declared',d.activeId!=null?fmt(d.activeId):'–','since the client started'));
   g.appendChild(stat('Pool bandwidth',p.bandwidth_bytes_per_sec!=null?hb(p.bandwidth_bytes_per_sec)+'/s':'–','to and from the pool'));
   g.appendChild(stat('Client uptime',dur(sv0.clientUptime),sv0.client?'running':'down'));
+  if(d.tag)g.appendChild(stat('Coinbase tag',d.tag,'written into every template I declare'));
 }
 
 /* ---------- Bitaxe ---------- */
@@ -694,7 +745,7 @@ function render(s){
   $('statustxt').textContent=txt;
   $('meta').textContent='Bitcoin Core '+(l.version||'').replace(/^Satoshi:/,'v')+' · sv2-tp · DMND client · Bitaxe Gamma · updated '+ago(st.age);
   renderStory(st);renderDiagram(st);renderKpis(st,s);renderBlock(st);renderClient(st);renderBitaxe(st);
-  renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
+  renderVs(s);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
   var h=s.history,day=s.now-86400;
   chart($('c7'),series(h,'tf',day).map(function(p){return[p[0],p[1]/1e6]}),{fmt:function(v){return v.toFixed(2)}});
   chart($('c9'),series(h,'ad',day),{fmt:function(v){return fmt(Math.round(v))},zero:true});
