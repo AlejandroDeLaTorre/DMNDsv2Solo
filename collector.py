@@ -262,6 +262,8 @@ def dmnd_client(synced):
         for t in sorted(tl, key=lambda x: x.get("received_at") or 0):
             first.setdefault(t.get("height"), t.get("total_fees_sat"))
         out["templates"] = [summarise_template(t, active, first.get(t.get("height"))) for t in tl[:3]]
+        out["activeId"] = active if isinstance(active, int) else None
+        out["policy"] = info.get("policy") if isinstance(info.get("policy"), str) else None
     agg = client_get("/api/stats/aggregate")
     if agg is not None:
         schema["aggregate"] = shape(agg)
