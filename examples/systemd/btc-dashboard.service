@@ -1,0 +1,7 @@
+[Unit]
+Description=Push node and mining stats to the dashboard Worker
+
+[Service]
+Type=oneshot
+# change the path to where you cloned the repo
+ExecStart=/usr/bin/python3 -I %h/btcnode/collector.py

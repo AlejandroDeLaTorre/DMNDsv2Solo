@@ -2,7 +2,8 @@
 """Read aggregate stats from the local bitcoind and push them to the dashboard Worker.
 
 Only aggregates are sent: no peer addresses, no hostnames, no local paths.
-Config comes from ~/.config/btc-dashboard.env (PUSH_URL, WRITE_KEY).
+Config comes from ~/.config/btc-dashboard.env (PUSH_URL, WRITE_KEY, optional BITAXE_URL)
+and ~/.config/dmnd.env (optional API_TX_TOKEN, RPC_URL, RPC_USER, RPC_PWD). See examples/.
 """
 import json
 import os
