@@ -37,6 +37,7 @@ A Cloudflare Worker serves the page; a Python script on your node pushes aggrega
 |---|---|
 | `collector.py` | Runs on the node. Reads `bitcoin-cli`, Bitcoin Core RPC, the DMND client API and the Bitaxe API, then pushes **aggregates only** (no txids, addresses, IPs or tokens). |
 | `worker.js` | The Worker. Serves the page at `/`, stats at `/api/stats`, and accepts pushes at `POST /api/push` (needs the write key). The page HTML is inside it. |
+| `template_watch.py` | Optional, runs on the node. Saves the last template the DMND client declared for each block height, so the "my template vs the real block" comparison is exact. |
 | `deploy.sh` | Uploads the Worker through the Cloudflare API. Creates the KV store and a write key on first run. |
 | `examples/` | Example config files and systemd units to copy. |
 
@@ -56,6 +57,8 @@ A Cloudflare Worker serves the page; a Python script on your node pushes aggrega
    ```
 
    Cloudflare's free KV plan allows 1,000 writes a day, so 2 minutes is the practical minimum.
+
+6. **Optional: exact template comparison.** Install `examples/systemd/template-watch.service` the same way (edit the path, then `systemctl --user enable --now template-watch`). Without it, the "my template vs the real block" section stays empty.
 
 Every section degrades gracefully: if the Bitaxe, the DMND client or RPC isn't configured, that part of the page just stays empty.
 

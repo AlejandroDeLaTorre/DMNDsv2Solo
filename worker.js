@@ -53,14 +53,22 @@ function sanitizeDmnd(d) {
     templates: t.filter((x) => x && typeof x === "object").map((x) => ({
       height: num(x.height), fees: num(x.fees), txCount: num(x.txCount), fullness: num(x.fullness),
       feeRate: num(x.feeRate), prioritized: num(x.prioritized), declared: bool(x.declared),
-      gained: num(x.gained), coinbase: num(x.coinbase), age: num(x.age),
+      gained: num(x.gained), coinbase: num(x.coinbase), age: num(x.age), accel: num(x.accel),
     })),
     stats: numMap(d.stats, 16),
     pool: numMap(d.pool, 8),
     activeId: num(d.activeId),
     tag: typeof d.tag === "string" && /^[A-Za-z0-9 _.\/-]{1,48}$/.test(d.tag) ? d.tag : null,
     policy: typeof d.policy === "string" && /^[a-z_]{1,32}$/.test(d.policy) ? d.policy : null,
+    prio: d.prio && typeof d.prio === "object"
+      ? { enabled: bool(d.prio.enabled), mempoolSpace: num(d.prio.mempoolSpace), manual: num(d.prio.manual) } : null,
   };
+}
+
+function sanitizeFinal(f) {
+  if (!Array.isArray(f)) return [];
+  return f.slice(-12).filter((x) => x && typeof x === "object" && num(x.height) !== null && num(x.fees) !== null)
+    .map((x) => ({ height: num(x.height), fees: num(x.fees), txCount: num(x.txCount), fullness: num(x.fullness), age: num(x.age) }));
 }
 
 function declaredFees(d) {
@@ -157,6 +165,7 @@ function sanitize(body) {
     recent: sanitizeRecent(body.recent),
     policy: sanitizePolicy(body.policy),
     txtypes: sanitizeTxTypes(body.txtypes),
+    final: sanitizeFinal(body.final),
   };
 }
 
@@ -201,14 +210,21 @@ async function handlePush(request, env) {
   }
   // My declared template per block height, compared with the block that was actually mined.
   state.mine = state.mine || {};
+  // Exact: the last template declared before the block was found (recorded locally by template_watch.py).
+  for (const f of snap.final || []) {
+    state.mine[f.height] = { fees: f.fees, tx: f.txCount, full: f.fullness, t: snap.t, ex: true, age: f.age };
+  }
   const dc = snap.dmnd && snap.dmnd.templates ? snap.dmnd.templates.find((t) => t.declared === true) : null;
-  if (dc && dc.height) state.mine[dc.height] = { fees: dc.fees, tx: dc.txCount, full: dc.fullness, t: snap.t };
-  state.vs = state.vs || [];
+  if (dc && dc.height && !(state.mine[dc.height] && state.mine[dc.height].ex)) {
+    state.mine[dc.height] = { fees: dc.fees, tx: dc.txCount, full: dc.fullness, t: snap.t };
+  }
+  // Older comparisons used a 2-minute snapshot of my template; keep only exact ones.
+  state.vs = (state.vs || []).filter((v) => v.ex);
   for (const b of snap.recent || []) {
     const m = state.mine[b.height];
-    if (m && b.fees !== null && !state.vs.some((v) => v.h === b.height)) {
+    if (m && m.ex && b.fees !== null && !state.vs.some((v) => v.h === b.height)) {
       state.vs.push({ h: b.height, time: b.time, pool: b.pool, mf: m.fees, mt: m.tx, mfull: m.full, mtime: m.t,
-                      rf: b.fees, rt: b.txs, rfull: b.weight ? b.weight / 40000 : null });
+                      age: m.age, ex: true, rf: b.fees, rt: b.txs, rfull: b.weight ? b.weight / 40000 : null });
     }
   }
   state.vs.sort((a, b) => a.h - b.h);
@@ -605,7 +621,7 @@ function renderBlock(st){
   function key(color,txt){var sp=el('span');var b=el('b');b.style.background=color;sp.appendChild(b);sp.appendChild(document.createTextNode(txt));kr.appendChild(sp)}
   key('var(--hash)','Subsidy '+btc(subs));key('var(--accent)','Fees '+btc(dc.fees)+(dc.coinbase?' ('+(dc.fees/dc.coinbase*100).toFixed(2)+'%)':''));c1.appendChild(kr);
   var mini=el('div','mini');
-  [['Transactions',fmt(dc.txCount)],['Avg fee rate',dc.feeRate==null?'–':dc.feeRate.toFixed(1)+' sat/vB'],['Prioritised',fmt(dc.prioritized)]].forEach(function(q){var x=el('div');x.appendChild(el('div','k',q[0]));x.appendChild(el('div','v',q[1]));mini.appendChild(x)});
+  [['Transactions',fmt(dc.txCount)],['Avg fee rate',dc.feeRate==null?'–':dc.feeRate.toFixed(1)+' sat/vB'],['Accelerated',dc.accel==null?fmt(dc.prioritized):fmt(dc.accel)+(dc.prioritized?' + '+fmt(dc.prioritized)+' manual':'')]].forEach(function(q){var x=el('div');x.appendChild(el('div','k',q[0]));x.appendChild(el('div','v',q[1]));mini.appendChild(x)});
   c1.appendChild(mini);host.appendChild(c1);
   var c2=el('div','card');c2.appendChild(el('div','k','Candidates · policy: '+(d&&d.policy?d.policy.replace(/_/g,' '):'highest fees')));
   t.sort(function(a,b){return (b.fees||0)-(a.fees||0)});
@@ -623,7 +639,7 @@ function renderBlock(st){
 function renderVs(s){
   var v=(s.vs||[]).slice().reverse(),box=$('vs'),k=$('vsk'),nt=$('vsnote');box.textContent='';k.textContent='';
   nt.textContent='When a block is found, the last template my node declared for that height is lined up against the block the network actually mined. Same height, two independent choices of transactions.';
-  if(!v.length){k.hidden=true;box.appendChild(el('div','empty','Waiting for the next block. The first comparison appears after a block is found while the stack is running.'));return}
+  if(!v.length){k.hidden=true;box.appendChild(el('div','empty','Waiting for the next block. Comparisons appear as blocks are found (about every 10 minutes).'));return}
   k.hidden=false;
   var more=0,sum=0;v.forEach(function(x){var d=x.mf-x.rf;if(d>0)more++;sum+=x.rf?d/x.rf*100:0});
   var avg=sum/v.length;
@@ -637,9 +653,9 @@ function renderVs(s){
     function line(lbl,val,cls){var row=el('div','vl');row.appendChild(el('span','lbl',lbl));var b=el('div','bar'),i=el('i',cls);i.style.width=(mx&&val?val/mx*100:0)+'%';b.appendChild(i);row.appendChild(b);row.appendChild(el('span','val',btc(val)));r.appendChild(row)}
     line('My template',x.mf,'');line('Real block',x.rf,'g');
     var d=(x.mf||0)-(x.rf||0),pc=x.rf?d/x.rf*100:0;
-    r.appendChild(el('div','note',(d>=0?'+':'−')+fmt(Math.abs(Math.round(d)))+' sats ('+(pc>=0?'+':'')+pc.toFixed(1)+'%) · '+fmt(x.mt)+' vs '+fmt(x.rt)+' transactions'));
+    r.appendChild(el('div','note',(d>=0?'+':'−')+fmt(Math.abs(Math.round(d)))+' sats ('+(pc>=0?'+':'−')+Math.abs(pc).toFixed(1)+'%) · '+fmt(x.mt)+' vs '+fmt(x.rt)+' transactions'+(x.age!=null?' · my template was '+x.age+'s old':'')));
     box.appendChild(r)});
-  box.appendChild(el('div','note','My side is the last template the dashboard recorded, up to 2 minutes before the block was found, so it can miss the newest transactions. A real block can also include transactions its miner was paid to add outside the mempool.'));
+  box.appendChild(el('div','note','My side is the last template my client declared before the block was found, recorded within 2 seconds. Its age is how long it had been in use when the block arrived. A real block can also include transactions its miner received privately or was paid to add outside the mempool.'));
 }
 var KIND={opreturn:['OP_RETURN data','extra data in an output, up to 100 KB per transaction'],
   inscription:['Inscriptions','data in a Taproot witness envelope (ordinals)'],
@@ -700,6 +716,8 @@ function renderClient(st){
   g.appendChild(stat('Pool bandwidth',p.bandwidth_bytes_per_sec!=null?hb(p.bandwidth_bytes_per_sec)+'/s':'–','to and from the pool'));
   g.appendChild(stat('Client uptime',dur(sv0.clientUptime),sv0.client?'running':'down'));
   if(d.tag)g.appendChild(stat('Coinbase tag',d.tag,'written into every template I declare'));
+  var pr=d.prio;
+  if(pr&&pr.enabled!=null)g.appendChild(stat('Accelerations',pr.enabled?(pr.mempoolSpace!=null?fmt(pr.mempoolSpace)+' active':'on'):'off',pr.enabled?'mempool.space accelerator feed'+(pr.manual?' · '+fmt(pr.manual)+' manual':''):'needs RPC access and an API token'));
 }
 
 /* ---------- Bitaxe ---------- */

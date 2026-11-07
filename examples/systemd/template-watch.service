@@ -1,0 +1,12 @@
+[Unit]
+Description=Record the last declared block template per height (for the dashboard)
+After=dmnd-client.service
+
+[Service]
+# change the path to where you cloned the repo
+ExecStart=/usr/bin/python3 -I %h/btcnode/template_watch.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

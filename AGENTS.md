@@ -3,7 +3,7 @@
 This repo has two parts:
 
 1. **The mining stack** (Bitcoin Core → sv2-tp → dmnd-client → Bitaxe). The setup steps are in [GUIDE.md](GUIDE.md). Nothing in this repo runs it; the guide uses upstream binaries.
-2. **The dashboard** (`collector.py`, `worker.js`, `deploy.sh`), described in [README.md](README.md).
+2. **The dashboard** (`collector.py`, `worker.js`, `deploy.sh`, plus the optional `template_watch.py` service), described in [README.md](README.md).
 
 ## Helping someone set up the mining stack
 
@@ -31,6 +31,7 @@ This repo has two parts:
 
 ### Testing changes
 
+- `python3 -I tests/test_template_watch.py` tests the template watcher (no network needed).
 - `python3 -I collector.py` runs one collection and push (needs the env files).
 - `./deploy.sh` redeploys the Worker; it's safe to re-run (keeps the KV store and write key).
 - To test the page without deploying: extract `PAGE` into an `.html` file, serve it with `python3 -m http.server`, and serve a sample `api/stats` JSON next to it. Check the browser console for errors and check narrow (phone) widths.

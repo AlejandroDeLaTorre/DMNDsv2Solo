@@ -225,6 +225,7 @@ def summarise_template(t, active_id=None, base_fees=None):
         "fullness": full,
         "feeRate": round(fees / (wt / 4), 2) if fees is not None and wt else None,  # sat per vbyte
         "prioritized": len(pri) if isinstance(pri, list) else None,
+        "accel": len(t["mempool_space_included"]) if isinstance(t.get("mempool_space_included"), list) else None,
         "declared": (tid is not None and tid == active_id) if active_id is not None else None,
         "gained": fees - base_fees if fees is not None and base_fees is not None else None,
         "coinbase": pick(t, "coinbase_value_sat", "coinbase_value"),
@@ -261,6 +262,21 @@ def miner_tag():
     return (opt("--tag-prefix") or "/DMND/") + name + "/" if name else None
 
 
+def prioritization(token):
+    """Whether transaction prioritisation (incl. mempool.space accelerations) is on, and how many
+    transactions each source currently prioritises. Counts only, never txids."""
+    caps = unwrap(client_get("/api/capabilities"))
+    enabled = caps.get("transaction_prioritization") if isinstance(caps, dict) else None
+    out = {"enabled": enabled if isinstance(enabled, bool) else None, "mempoolSpace": None, "manual": None}
+    if enabled:
+        pr = unwrap(client_get("/api/tx/prioritized", token))
+        if isinstance(pr, dict):
+            for key, name in (("mempool_space", "mempoolSpace"), ("manually_prioritized", "manual")):
+                if isinstance(pr.get(key), dict):
+                    out[name] = len(pr[key])
+    return out
+
+
 def dmnd_client(synced):
     """Template summaries and client stats. Returns None when the client API cannot be reached."""
     try:
@@ -284,6 +300,7 @@ def dmnd_client(synced):
         out["templates"] = [summarise_template(t, active, first.get(t.get("height"))) for t in tl[:3]]
         out["activeId"] = active if isinstance(active, int) else None
         out["policy"] = info.get("policy") if isinstance(info.get("policy"), str) else None
+    out["prio"] = prioritization(cfg.get("API_TX_TOKEN"))
     agg = client_get("/api/stats/aggregate")
     if agg is not None:
         schema["aggregate"] = shape(agg)
@@ -300,6 +317,27 @@ def dmnd_client(synced):
     except Exception:
         pass
     return out
+
+
+FINAL_FILE = os.path.expanduser("~/.cache/btc-dashboard-final.json")  # written by template_watch.py
+
+
+def final_templates(limit=12):
+    """The last declared template for each finished height (from template_watch.py). Totals only."""
+    try:
+        with open(FINAL_FILE) as f:
+            hs = json.load(f).get("heights", {})
+    except Exception:
+        return None
+    out = []
+    for h, r in sorted(hs.items(), key=lambda kv: int(kv[0])):
+        if not r.get("end") or r.get("stale") or r.get("fees") is None:
+            continue
+        wt = r.get("weight")
+        out.append({"height": int(h), "fees": r["fees"], "txCount": r.get("tx"),
+                    "fullness": wt / BLOCK_WEIGHT * 100 if wt else None,
+                    "age": r["end"] - r["recv"] if r.get("recv") else None})
+    return out[-limit:]
 
 
 def load_env_file(path):
@@ -588,6 +626,7 @@ def main():
         "recent": recent,
         "policy": policy(mem),
         "txtypes": tx_types(recent) if chain.get("initialblockdownload") is False else None,
+        "final": final_templates(),
         "dmnd": dmnd_client(chain.get("initialblockdownload") is False),
     }
     req = urllib.request.Request(
