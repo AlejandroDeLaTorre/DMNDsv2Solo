@@ -14,7 +14,8 @@ import sys
 import time
 import urllib.request
 
-CLI = os.environ.get("BITCOIN_CLI", "/home/pigeon/.local/bin/bitcoin-cli")
+CLI = (os.environ.get("BITCOIN_CLI") or shutil.which("bitcoin-cli")
+       or os.path.expanduser("~/.local/bin/bitcoin-cli"))
 ENV_FILE = os.path.expanduser("~/.config/btc-dashboard.env")
 
 

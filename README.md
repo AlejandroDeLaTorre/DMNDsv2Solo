@@ -8,13 +8,16 @@ A small public dashboard for a local Bitcoin Core node, hosted on Cloudflare Wor
 
 ## Setup
 
-1. Put a Cloudflare API token (Workers Scripts + Workers KV Storage write) in `~/.config/cloudflare.env`:
+1. Put a Cloudflare API token (Workers Scripts + Workers KV Storage write), your account ID and your
+   workers.dev subdomain in `~/.config/cloudflare.env`:
 
    ```
    CLOUDFLARE_API_TOKEN=...
+   CLOUDFLARE_ACCOUNT_ID=...
+   CLOUDFLARE_SUBDOMAIN=...   # the <x> in <name>.<x>.workers.dev
    ```
 
-2. Edit `ACCOUNT`, `NAME` and `SUBDOMAIN` at the top of `deploy.sh`, then run `./deploy.sh`.
+2. Run `./deploy.sh` (set `NAME=...` to change the Worker name; default `bitcoin-node`).
    It writes the push URL and a generated write key to `~/.config/btc-dashboard.env`.
 3. Schedule `collector.py` every 2 minutes (a systemd user timer or cron). Cloudflare's free KV plan allows
    1,000 writes per day and each push is one write, so 2 minutes is the practical floor.

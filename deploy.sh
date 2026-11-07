@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # Deploy worker.js to Cloudflare via the REST API (no Node/wrangler needed).
-# Needs ~/.config/cloudflare.env (CLOUDFLARE_API_TOKEN). Creates the KV namespace and the
+# Needs ~/.config/cloudflare.env with CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and
+# CLOUDFLARE_SUBDOMAIN (the <x> in <name>.<x>.workers.dev). Creates the KV namespace and the
 # write key on first run; re-running redeploys the code and keeps both.
 set -euo pipefail
 
-ACCOUNT=d92d5234f1a14413748b72185837305d
-NAME=bitcoin-node
-SUBDOMAIN=alejandro-d92
+NAME=${NAME:-bitcoin-node}
 HERE="$(cd "$(dirname "$0")" && pwd)"
 APP_ENV="$HOME/.config/btc-dashboard.env"
-API="https://api.cloudflare.com/client/v4/accounts/$ACCOUNT"
-
 set -a; . "$HOME/.config/cloudflare.env"; set +a
+: "${CLOUDFLARE_ACCOUNT_ID:?set CLOUDFLARE_ACCOUNT_ID in ~/.config/cloudflare.env}"
+: "${CLOUDFLARE_SUBDOMAIN:?set CLOUDFLARE_SUBDOMAIN (your workers.dev subdomain) in ~/.config/cloudflare.env}"
+ACCOUNT=$CLOUDFLARE_ACCOUNT_ID
+SUBDOMAIN=$CLOUDFLARE_SUBDOMAIN
+API="https://api.cloudflare.com/client/v4/accounts/$ACCOUNT"
 cf() { curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$@"; }
 ok() { python3 -c 'import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get("success") else (print(d.get("errors"),file=sys.stderr) or 1))'; }
 
