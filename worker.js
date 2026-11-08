@@ -317,6 +317,7 @@ h1{font-size:26px;margin:0;letter-spacing:-.015em;line-height:1.2}
 .sub{color:var(--mute);font-size:13px;margin-top:4px}
 nav{display:flex;gap:6px;margin:0 0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 nav button{white-space:nowrap;flex:none}
+nav .navlink{white-space:nowrap;flex:none;margin-left:auto;padding:6px 14px;border-radius:8px;border:1px solid var(--accent);color:var(--accent);text-decoration:none;font-weight:650}
 nav button{font:inherit;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--mute);cursor:pointer}
 nav button[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
@@ -440,6 +441,7 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
   <button role="tab" id="t-miner" aria-selected="false">Miner</button>
   <button role="tab" id="t-market" aria-selected="false">Market</button>
   <button role="tab" id="t-nodes" aria-selected="false">Nodes</button>
+  <a class="navlink" href="https://block-hunter.alejandro-d92.workers.dev/" target="_blank" rel="noopener">Block Hunter &#8599;</a>
 </nav>
 
 <section id="p-over">

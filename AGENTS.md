@@ -37,6 +37,12 @@ This repo has two parts:
 - The page refreshes every 30 s but the collector pushes every 2 min, so flashes and toasts fire when new data shows a change, not at the exact moment.
 - A background browser pane throttles timers: to test event detection, extract the function and run it in isolation.
 
+### Block Hunter (`blockhunter/`)
+
+- A separate Worker with one Durable Object. `page.html` is joined into `worker.js` by `deploy.sh` (same rule: no backticks or `${` in the page). Never print `WRITE_KEY` or `ACCESS_CODE`.
+- `runner.py` is the only code that changes the node. Keep it outbound-only, keep `MODE=dry` the default, record deltas before applying them, and never skip the gate. Do not switch to live mode without the user saying so in the current conversation.
+- Tests: `python3 -I tests/test_blockhunter.py`.
+
 ### Testing changes
 
 - `python3 -I tests/test_template_watch.py` tests the template watcher (no network needed).

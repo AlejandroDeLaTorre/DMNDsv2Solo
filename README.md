@@ -18,6 +18,7 @@ Bitcoin Core ──IPC──▶ sv2-tp ──SV2──▶ dmnd-client ──SV1�
 | Set up the node + sv2-tp + DMND + Bitaxe     | **[GUIDE.md](GUIDE.md)**   |
 | Also merge-mine RSK (optional)               | [GUIDE.md](GUIDE.md#optional-also-mine-rsk-merge-mining) |
 | Add the public dashboard on top              | [Dashboard](#dashboard) below |
+| Run the Block Hunter voting game             | [blockhunter/README.md](blockhunter/README.md) |
 | Use an AI assistant to help me set it up     | [Using an AI assistant](#using-an-ai-assistant) |
 
 The mining stack (GUIDE.md) works on its own. The dashboard is optional.
