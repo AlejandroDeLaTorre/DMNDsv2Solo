@@ -33,6 +33,7 @@ This repo has two parts:
 ### The live diagram
 
 - `WIDE` and `TALL` in `worker.js` define the two layouts (boxes, outlines, links). A link is `[key, colour, path, label position, label, dy]`; `dy` is where the value line sits (`null` for none). Link state comes from `derive()`.
+- Block Hunter sits above the Bitcoin node. `shiftLayout()` moves the original layout down so its coordinates stay as they were. `collector.py` reads Block Hunter's public `/api/state` (set `BLOCKHUNTER_URL` in `~/.config/btc-dashboard.env`) and sends counts only.
 - Dots on the lines use SVG `animateMotion` at an illustrative pace; the real rates only set the spacing. Respect `prefers-reduced-motion`.
 - The page refreshes every 30 s but the collector pushes every 2 min, so flashes and toasts fire when new data shows a change, not at the exact moment.
 - A background browser pane throttles timers: to test event detection, extract the function and run it in isolation.

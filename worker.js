@@ -100,6 +100,15 @@ function sanitizeRsk(r) {
   };
 }
 
+function sanitizeBh(b) {
+  if (!b || typeof b !== "object" || num(b.height) === null) return null;
+  return {
+    height: num(b.height), mode: b.mode === "live" ? "live" : "dry", open: bool(b.open),
+    votes: num(b.votes), picked: num(b.picked), score: num(b.score), gate: bool(b.gate),
+    age: num(b.age), rounds: num(b.rounds),
+  };
+}
+
 function declaredFees(d) {
   if (!d || !d.templates) return null;
   const x = d.templates.find((t) => t.declared === true);
@@ -197,6 +206,7 @@ function sanitize(body) {
     final: sanitizeFinal(body.final),
     ms: sanitizeMs(body.ms),
     rsk: sanitizeRsk(body.rsk),
+    bh: sanitizeBh(body.bh),
   };
 }
 
@@ -581,9 +591,9 @@ function derive(s){
   var hashing=!!(bx&&bx.online&&bx.hashrate>0);
   var lat=d&&d.pool&&d.pool.declaration_latency_ms!=null?d.pool.declaration_latency_ms:null;
   var k={ipc:!stale&&!!sv0.ipc,tpl:!stale&&!!sv0.tp&&synced&&t.length>0,decl:!stale&&!!decl,
-         shares:!stale&&hashing&&sv0.miners>0,jobs:!stale&&sv0.miners>0&&!!decl,
+         shares:!stale&&hashing&&sv0.miners>0,jobs:!stale&&sv0.miners>0&&!!decl,bh:!stale&&!!(l.bh&&l.bh.age<900),
          rsk:!stale&&!!(l.rsk&&l.rsk.synced),bridge:!stale&&!!(l.rsk&&l.rsk.bridge&&l.rsk.mm&&l.rsk.mm.work),ms:!stale&&!!(l.ms&&l.ms.next)};
-  var dead={rsk:!l.rsk,bridge:!(l.rsk&&l.rsk.bridge),ms:!l.ms,ipc:!sv0.ipc,tpl:!sv0.tp,decl:!sv0.client,shares:!sv0.client||(bx&&!bx.online),jobs:!sv0.client};
+  var dead={bh:!l.bh,rsk:!l.rsk,bridge:!(l.rsk&&l.rsk.bridge),ms:!l.ms,ipc:!sv0.ipc,tpl:!sv0.tp,decl:!sv0.client,shares:!sv0.client||(bx&&!bx.online),jobs:!sv0.client};
   return {l:l,age:age,stale:stale,synced:synced,pct:l.progress==null?null:l.progress*100,sv:sv0,bx:bx,d:d,t:t,decl:decl,hashing:hashing,lat:lat,k:k,dead:dead};
 }
 
@@ -612,6 +622,22 @@ var TALL={W:360,H:1140,bw:220,bh:84,
          ['rsk','tp','M230 844 L230 900',[238,876,'start'],'RPC',0],
          ['bridge','tp','M340 942 L354 942 L354 372 L340 372',[348,660,'rot'],'RSK work',0],
          ['ms','tp','M120 1082 L12 1082 L12 328 L120 328',[20,1074,'start'],'Boosts',-12]]};
+/* Block Hunter sits above the Bitcoin node: shift the existing layout down and add its box. */
+function shiftLayout(L,dy){
+  L.H+=dy;
+  Object.keys(L.n).forEach(function(k){L.n[k][1]+=dy});
+  L.regions.forEach(function(r){r[1]+=dy});
+  L.labels.forEach(function(q){q[1]+=dy});
+  L.links.forEach(function(k){
+    k[2]=k[2].replace(/([ML])(-?[0-9.]+) (-?[0-9.]+)/g,function(m,c,x,y){return c+x+' '+(parseFloat(y)+dy)});
+    k[3][1]+=dy;
+  });
+}
+shiftLayout(WIDE,130);shiftLayout(TALL,140);
+WIDE.n.bh=[10,40];WIDE.labels.push([10,28,'start','INTERNET']);
+WIDE.links.push(['bh','tp','M100 128 L100 170',[108,154,'start'],'Crowd picks',0]);
+TALL.n.bh=[120,36];TALL.labels.push([120,28,'start','INTERNET']);
+TALL.links.push(['bh','tp','M230 120 L230 176',[238,152,'start'],'Crowd picks',0]);
 var PREV=null,FLASH={},SEL=null,TICK=null,REDUCE=false;
 try{REDUCE=window.matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
@@ -671,6 +697,8 @@ function renderDiagram(st){
     var go=function(){SEL=SEL===key?null:key;renderDiagram(derive(LAST));renderDgCard()};
     g.onclick=go;g.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}};
     svg.appendChild(g)}
+  var bh=l.bh;
+  box('bh','Block Hunter',bh?bh.age<900:null,bh?(bh.open?'Voting open':bh.picked?'Slice locked':'No votes'):'Offline',bh?'Round '+fmt(bh.height)+' · '+(bh.mode==='live'?'LIVE':'practice'):'optional game');
   var ver=(l.version||'').replace(/^Satoshi:/,'v');
   box('node','Bitcoin node',!st.stale,st.synced?'Block '+fmt(l.blocks):(st.pct==null?'–':st.pct.toFixed(1)+'% synced'),'Core '+ver+' · '+fmt((l.peersIn||0)+(l.peersOut||0))+' peers');
   box('tp','sv2-tp',st.stale?false:!!sv0.tp,!sv0.tp?'Down':st.synced?(st.t.length?'Building blocks':'Serving'):'Waiting for sync','Template Provider · '+dur(sv0.tpUptime));
@@ -698,6 +726,7 @@ function renderDgCard(){
   else if(SEL==='bitaxe'){title='Bitaxe Gamma';col='var(--hash)';if(bx&&bx.online){R('Hashrate',hrate(bx.hashrate));R('ASIC temperature',bx.temp!=null?bx.temp.toFixed(0)+' °C':null);R('Power',bx.power!=null?bx.power.toFixed(1)+' W':null);R('Frequency',bx.frequency!=null?bx.frequency+' MHz':null);R('Voltage',bx.voltage!=null?Math.round(bx.voltage)+' mV':null);R('Shares',fmt(bx.accepted)+' accepted, '+fmt(bx.rejected)+' rejected');R('Best share',bx.bestDiff);R('Uptime',dur(bx.uptime))}else R('Status','offline or not monitored');pts=series(h,'hr',day);unit='hashrate (GH/s), last 24 h'}
   else if(SEL==='rskj'){title='RSK node (RskJ)';if(rs){R('Status',rs.synced?'synced':'syncing');R('Block',fmt(rs.block));R('Latest block',rs.tipAge!=null?ago(rs.tipAge):null);R('Peers',fmt(rs.peers));R('Database',rs.dbBytes!=null?gb(rs.dbBytes):null)}else R('Status','not reporting')}
   else if(SEL==='bridge'){title='RSK bridge';var mm=rs&&rs.mm||{};R('Service',rs&&rs.bridge==null?null:rs&&rs.bridge?'running':'stopped');R('Merge mining',mm.configured==null?null:mm.configured?'on':'off');R('Work for the miner',mm.work==null?null:mm.work?'yes':'no');R('RSK blocks found',fmt(mm.found));R('Job','turns an RSK block into a commitment in my coinbase')}
+  else if(SEL==='bh'){title='Block Hunter (crowd game)';var g2=l.bh;if(g2){R('Mode',g2.mode==='live'?'live: the winning slice is applied to my node':'practice only');R('Round',fmt(g2.height));R('Voting',g2.open?'open':'closed');R('Votes cast',fmt(g2.votes));R('Bundles in the crew block',fmt(g2.picked));R('Crew score',g2.score==null||!g2.picked?null:(g2.score*100).toFixed(1)+'% of best');R('Gate',g2.gate==null?null:g2.gate?'passed':'failed');R('Finished rounds',fmt(g2.rounds));R('Play it','block-hunter.alejandro-d92.workers.dev')}else R('Status','not reporting')}
   else if(SEL==='ms'){title='mempool.space';var n=ms&&ms.next,a=ms&&ms.acc||{};R('Projected next block',n?fmt(Math.round(n.fees))+' sats, '+fmt(n.tx)+' transactions':null);R('Fastest fee tier',ms&&ms.rec&&ms.rec.fastestFee!=null?ms.rec.fastestFee+' sat/vB':null);R('Active accelerations',a.active==null?null:fmt(a.active));R('Completed lately',a.done==null?null:fmt(a.done));R('Polled by the client','every 30 s')}
   var hd=el('div','dch');hd.appendChild(el('b',null,title));var x=el('button','dcx','Close');x.onclick=function(){SEL=null;renderDiagram(derive(LAST));renderDgCard()};hd.appendChild(x);c.appendChild(hd);
   var gr=el('div','dcg');rows.forEach(function(r){var q=el('div');q.appendChild(el('span','k',r[0]));q.appendChild(el('span','v',String(r[1])));gr.appendChild(q)});c.appendChild(gr);

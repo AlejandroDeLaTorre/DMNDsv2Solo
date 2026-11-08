@@ -48,7 +48,7 @@ A Cloudflare Worker serves a five-tab page (Overview, My block, Miner, Market, N
 
 1. **Cloudflare config.** Copy [`examples/cloudflare.env.example`](examples/cloudflare.env.example) to `~/.config/cloudflare.env` and fill in an API token (permissions: Workers Scripts edit + Workers KV Storage edit), your account ID and your workers.dev subdomain.
 2. **Deploy.** Run `./deploy.sh` (set `NAME=...` to change the Worker name; default `bitcoin-node`). It prints your dashboard URL and writes the push URL and write key to `~/.config/btc-dashboard.env`.
-3. **Optional extras** in `~/.config/btc-dashboard.env`: add `BITAXE_URL=http://<bitaxe-ip>` to show miner stats.
+3. **Optional extras** in `~/.config/btc-dashboard.env`: add `BITAXE_URL=http://<bitaxe-ip>` to show miner stats, and `BLOCKHUNTER_URL=https://<your block-hunter worker>` to show the Block Hunter game in the diagram.
 4. **Optional DMND + RPC data** in `~/.config/dmnd.env` (the same file the client uses): `API_TX_TOKEN` for templates, and `RPC_URL`, `RPC_USER`, `RPC_PWD` for the mempool policy and transaction-type sections. See [`examples/dmnd.env.example`](examples/dmnd.env.example).
 5. **Schedule the collector** every 2 minutes with the systemd units in [`examples/systemd/`](examples/systemd/):
 

@@ -420,6 +420,30 @@ def mempool_space():
     return {"next": nxt, "rec": numeric_scalars(rec, 6) if isinstance(rec, dict) else None, "acc": acc}
 
 
+def block_hunter(url):
+    """Public state of the Block Hunter game (aggregates only). Returns None when not configured."""
+    if not url:
+        return None
+    try:
+        req = urllib.request.Request(url.rstrip("/") + "/api/state", headers={"User-Agent": "btc-dashboard-collector/1"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            st = json.load(r)
+        rd = st.get("round")
+        if not isinstance(rd, dict):
+            return None
+        crowd = rd.get("crowd") or {}
+        now = st.get("now") or int(time.time())
+        return {
+            "height": rd.get("height"), "mode": rd.get("mode"), "open": now < (rd.get("lockAt") or 0),
+            "votes": sum(v for v in (rd.get("votes") or {}).values() if isinstance(v, int)),
+            "picked": len(crowd.get("ids") or []), "score": crowd.get("score"),
+            "gate": (rd.get("result") or {}).get("gate"), "age": max(0, now - (rd.get("created") or now)),
+            "rounds": len(st.get("history") or []),
+        }
+    except Exception:
+        return None
+
+
 RSK_RPC = os.environ.get("RSK_RPC_URL", "http://127.0.0.1:4444")
 
 
@@ -771,6 +795,7 @@ def main():
         "final": final_templates(),
         "ms": mempool_space(),
         "rsk": rsk_status(),
+        "bh": block_hunter(cfg.get("BLOCKHUNTER_URL")),
         "dmnd": dmnd_client(chain.get("initialblockdownload") is False),
     }
     req = urllib.request.Request(
