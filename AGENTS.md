@@ -30,6 +30,13 @@ This repo has two parts:
 - `collector.py` must keep working when parts are missing (no Bitaxe, no DMND client, no RPC credentials): wrap each source and return `None` on failure.
 - Config comes only from `~/.config/btc-dashboard.env`, `~/.config/dmnd.env` and `~/.config/cloudflare.env`. Never hard-code personal paths, IPs, account IDs or keys.
 
+### The live diagram
+
+- `WIDE` and `TALL` in `worker.js` define the two layouts (boxes, outlines, links). A link is `[key, colour, path, label position, label, dy]`; `dy` is where the value line sits (`null` for none). Link state comes from `derive()`.
+- Dots on the lines use SVG `animateMotion` at an illustrative pace; the real rates only set the spacing. Respect `prefers-reduced-motion`.
+- The page refreshes every 30 s but the collector pushes every 2 min, so flashes and toasts fire when new data shows a change, not at the exact moment.
+- A background browser pane throttles timers: to test event detection, extract the function and run it in isolation.
+
 ### Testing changes
 
 - `python3 -I tests/test_template_watch.py` tests the template watcher (no network needed).

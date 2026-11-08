@@ -340,9 +340,23 @@ nav button[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
 .dg .lk.tp.live{stroke:var(--accent)}.dg .lk.hs.live{stroke:var(--hash)}
 .dg .lk.live{stroke-dasharray:9 7;animation:flow .9s linear infinite}
 .dg .lk.dead{stroke:var(--bad);stroke-dasharray:2 7;opacity:.7}
-.dg .ll{font-size:11px;fill:var(--mute);font-weight:600}
+.dg .ll{font-size:11px;fill:var(--mute);font-weight:600}.dg .ll.lv{font-weight:500;fill:var(--ink)}
+.dg g.tap{cursor:pointer;outline:none}.dg g.tap:hover .bx,.dg g.tap:focus-visible .bx,.dg g.tap.sel .bx{stroke:var(--accent);stroke-width:2}
+.dg .bx.flash{animation:flashbx 1.4s ease-out 3}
+@keyframes flashbx{0%{stroke:var(--accent);stroke-width:7;fill:var(--accent-soft)}100%{stroke-width:1.5}}
+.dg .pk{fill:var(--accent)}.dg .pk.hs{fill:var(--hash)}
+.dg .spl{stroke:var(--accent);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.sp{width:100%;height:46px;color:var(--accent)}.sp .spl{stroke:currentColor}.sp.big{height:46px;margin-top:8px}
+.dgcard{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 10px;background:var(--card)}
+.dch{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.dcx{font:inherit;font-size:12px;border:1px solid var(--line);background:none;color:var(--mute);border-radius:8px;padding:2px 10px;cursor:pointer}
+.dcg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 18px;font-size:13px}
+.dcg div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:3px 0}
+.dcg .k{color:var(--mute)}.dcg .v{font-weight:650;text-align:right}
+.tick{margin-top:8px;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:99px;font-size:13px;z-index:9;max-width:90vw;box-shadow:0 4px 18px rgba(0,0,0,.25)}
 @keyframes flow{to{stroke-dashoffset:-16}}
-@media (prefers-reduced-motion:reduce){.dg .lk.live,.pill.ok i{animation:none}}
+@media (prefers-reduced-motion:reduce){.dg .lk.live,.pill.ok i,.dg .bx.flash{animation:none}}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0}
 .kpi .k,.stat .k,.k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
 .kpi .v{font-size:26px;font-weight:700;letter-spacing:-.01em;margin-top:2px;word-break:break-word}
@@ -432,11 +446,13 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
   <div class="card hero">
     <p class="story" id="story">loading&hellip;</p>
     <div id="diagram"></div>
+    <div class="dgcard" id="dgcard" hidden></div>
     <div class="legend">
       <span class="lt"><b></b>Block templates and job declaration (Stratum V2)</span>
       <span class="lh"><b></b>Hashes and shares</span>
-      <span>Moving lines are live</span>
+      <span>Moving lines and dots are live, the dot pace is illustrative. Tap a box for details.</span>
     </div>
+    <div class="tick" id="tick" hidden></div>
   </div>
   <div class="kpis" id="kpis"></div>
 
@@ -526,6 +542,7 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
   </div>
 </section>
 
+<div class="toast" id="toast" hidden></div>
 <footer>Aggregate statistics only: no transactions, addresses, wallet or machine details are published. Updates about every 2 minutes.</footer>
 </div>
 <script>
@@ -572,60 +589,145 @@ function derive(s){
 var WIDE={W:980,H:336,bw:180,bh:88,
   n:{node:[10,40],tp:[270,40],client:[530,40],pool:[790,40],bitaxe:[530,210],rskj:[10,210],bridge:[270,210],ms:[790,210]},
   regions:[[0,8,722,136],[0,176,462,136]],labels:[[14,28,'start','THIS LAPTOP'],[790,28,'start','INTERNET'],[14,196,'start','THIS LAPTOP, RSK MERGE MINING'],[790,198,'start','INTERNET'],[530,320,'start','HOME NETWORK']],
-  links:[['ipc','tp','M190 84 L270 84',[230,76,'middle'],'IPC'],
-         ['tpl','tp','M450 84 L530 84',[490,76,'middle'],'Templates'],
-         ['decl','tp','M710 72 L790 72',[750,62,'middle'],'Declare jobs'],
-         ['shares','hs','M710 100 L790 100',[750,118,'middle'],'Shares'],
-         ['shares','hs','M600 210 L600 128',[592,174,'end'],'Shares'],
-         ['jobs','tp','M640 128 L640 210',[648,174,'start'],'Jobs'],
-         ['rsk','tp','M190 254 L270 254',[230,246,'middle'],'RPC'],
-         ['bridge','tp','M450 236 L500 236 L500 150 L560 150 L560 128',[492,200,'end'],'RSK work'],
-         ['ms','tp','M790 244 L750 244 L750 118 L710 118',[742,190,'end'],'Boosts']]};
+  links:[['ipc','tp','M190 84 L270 84',[230,76,'middle'],'IPC',-12],
+         ['tpl','tp','M450 84 L530 84',[490,76,'middle'],'Templates',-12],
+         ['decl','tp','M710 72 L790 72',[750,62,'middle'],'Declare jobs',-12],
+         ['shares','hs','M710 100 L790 100',[750,118,'middle'],'Shares',null],
+         ['shares','hs','M600 210 L600 128',[592,174,'end'],'Shares',12],
+         ['jobs','tp','M640 128 L640 210',[648,174,'start'],'Jobs',0],
+         ['rsk','tp','M190 254 L270 254',[230,246,'middle'],'RPC',0],
+         ['bridge','tp','M450 236 L500 236 L500 150 L560 150 L560 128',[492,200,'end'],'RSK work',0],
+         ['ms','tp','M790 244 L750 244 L750 118 L710 118',[742,190,'end'],'Boosts',-12]]};
 var TALL={W:360,H:1140,bw:220,bh:84,
   n:{node:[120,36],tp:[120,176],client:[120,316],pool:[120,476],bitaxe:[120,606],rskj:[120,760],bridge:[120,900],ms:[120,1040]},
   regions:[[100,8,252,400],[100,732,252,264]],labels:[[112,26,'start','THIS LAPTOP'],[120,468,'start','INTERNET'],[120,598,'start','HOME NETWORK'],[112,750,'start','THIS LAPTOP, RSK'],[120,1032,'start','INTERNET']],
-  links:[['ipc','tp','M230 120 L230 176',[238,152,'start'],'IPC'],
-         ['tpl','tp','M230 260 L230 316',[238,292,'start'],'Templates'],
-         ['decl','tp','M205 400 L205 476',[197,442,'end'],'Declare jobs'],
-         ['shares','hs','M255 400 L255 476',[263,442,'start'],'Shares'],
-         ['shares','hs','M120 660 L40 660 L40 344 L120 344',[30,500,'rot'],'Shares'],
-         ['jobs','tp','M120 372 L70 372 L70 632 L120 632',[84,500,'rot'],'Jobs'],
-         ['rsk','tp','M230 844 L230 900',[238,876,'start'],'RPC'],
-         ['bridge','tp','M340 942 L354 942 L354 372 L340 372',[348,660,'rot'],'RSK work'],
-         ['ms','tp','M120 1082 L12 1082 L12 328 L120 328',[20,1074,'start'],'Boosts']]};
+  links:[['ipc','tp','M230 120 L230 176',[238,152,'start'],'IPC',0],
+         ['tpl','tp','M230 260 L230 316',[238,292,'start'],'Templates',12],
+         ['decl','tp','M205 400 L205 476',[197,442,'end'],'Declare jobs',-12],
+         ['shares','hs','M255 400 L255 476',[263,442,'start'],'Shares',null],
+         ['shares','hs','M120 660 L40 660 L40 344 L120 344',[30,500,'rot'],'Shares',0],
+         ['jobs','tp','M120 372 L70 372 L70 632 L120 632',[84,500,'rot'],'Jobs',0],
+         ['rsk','tp','M230 844 L230 900',[238,876,'start'],'RPC',0],
+         ['bridge','tp','M340 942 L354 942 L354 372 L340 372',[348,660,'rot'],'RSK work',0],
+         ['ms','tp','M120 1082 L12 1082 L12 328 L120 328',[20,1074,'start'],'Boosts',-12]]};
+var PREV=null,FLASH={},SEL=null,TICK=null,REDUCE=false;
+try{REDUCE=window.matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function shareInterval(h){
+  var n=h.length-1;while(n>=0&&h[n].sh==null)n--;if(n<1)return null;
+  var j=n;while(j>0&&h[j-1].sh!=null&&h[j-1].sh<=h[j].sh&&h[n].t-h[j-1].t<=3600)j--;
+  var dn=h[n].sh-h[j].sh,dt=h[n].t-h[j].t;return dn>0&&dt>=120?dt/dn:null;
+}
+function spark(pts,w,h){
+  var svg=sv('svg',{viewBox:'0 0 '+w+' '+h,'class':'sp'});
+  if(!pts||pts.length<2)return svg;
+  var x0=pts[0][0],x1=pts[pts.length-1][0],lo=Infinity,hi=-Infinity;
+  pts.forEach(function(p){if(p[1]<lo)lo=p[1];if(p[1]>hi)hi=p[1]});if(hi===lo){hi=lo+1}
+  var d=pts.map(function(p,i){return(i?'L':'M')+(2+(p[0]-x0)/Math.max(1,x1-x0)*(w-4)).toFixed(1)+' '+(2+(1-(p[1]-lo)/(hi-lo))*(h-4)).toFixed(1)}).join('');
+  svg.appendChild(sv('path',{d:d,fill:'none','class':'spl'}));return svg;
+}
+function sparkPath(pts,x,y,w,h){
+  if(!pts||pts.length<2)return null;
+  var x0=pts[0][0],x1=pts[pts.length-1][0],lo=Infinity,hi=-Infinity;
+  pts.forEach(function(p){if(p[1]<lo)lo=p[1];if(p[1]>hi)hi=p[1]});if(hi===lo){hi=lo+1}
+  return pts.map(function(p,i){return(i?'L':'M')+(x+(p[0]-x0)/Math.max(1,x1-x0)*w).toFixed(1)+' '+(y+(1-(p[1]-lo)/(hi-lo))*h).toFixed(1)}).join('');
+}
 function renderDiagram(st){
   var host=$('diagram');host.textContent='';
-  var L=host.clientWidth>=680?WIDE:TALL,svg=sv('svg',{viewBox:'0 0 '+L.W+' '+L.H,'class':'dg',role:'img','aria-label':'Live diagram of the Stratum V2 mining stack'});
+  var visible=host.clientWidth>0;
+  var L=host.clientWidth>=680?WIDE:TALL,svg=sv('svg',{viewBox:'0 0 '+L.W+' '+L.H,'class':'dg',role:'group','aria-label':'Live diagram of the Stratum V2 mining stack. Select a box for details.'});
   L.regions.forEach(function(r){svg.appendChild(sv('rect',{x:r[0],y:r[1],width:r[2],height:r[3],rx:16,'class':'rg'}))});
   L.labels.forEach(function(q){svg.appendChild(sv('text',{x:q[0],y:q[1],'text-anchor':q[2],'class':'rl'},q[3]))});
+  var l=st.l,sv0=st.sv,bx=st.bx,d=st.d,w=L.bw,h=L.bh,ml=w>200?19:16,sl=w>200?31:25,hist=LAST&&LAST.history||[];
+  var iv=declInterval(hist),shiv=shareInterval(hist),day=LAST?LAST.now-86400:0;
+  var pace={ipc:iv,tpl:iv,decl:iv,jobs:iv,shares:shiv,rsk:30,bridge:iv,ms:30};
+  var VAL={tpl:iv!=null?'every ~'+Math.round(iv)+' s':null,decl:st.lat!=null?Math.round(st.lat)+' ms':null,
+    shares:bx&&bx.online&&bx.hashrate?hrate(bx.hashrate):null,ms:'30 s poll'};
+  var live=[];
   L.links.forEach(function(k){
     var state=st.stale?'dead':st.k[k[0]]?'live':st.dead[k[0]]?'dead':'';
     svg.appendChild(sv('path',{d:k[2],'class':'lk '+k[1]+' '+state}));
+    if(state==='live')live.push(k);
   });
-  L.links.forEach(function(k){var p=k[3],a={x:p[0],y:p[1],'class':'ll','text-anchor':p[2]==='rot'?'middle':p[2]};
-    if(p[2]==='rot')a.transform='rotate(-90 '+p[0]+' '+p[1]+')';svg.appendChild(sv('text',a,k[4]))});
-  var l=st.l,sv0=st.sv,bx=st.bx,d=st.d,w=L.bw,h=L.bh,ml=w>200?19:16,sl=w>200?31:25;
-  function box(key,title,on,main,sub,hl){var p=L.n[key];if(!p)return;var x=p[0],y=p[1],g=sv('g',{});
-    g.appendChild(sv('rect',{x:x,y:y,width:w,height:h,rx:12,'class':'bx'+(hl?' hl':'')}));
+  L.links.forEach(function(k){var p=k[3],v=VAL[k[0]],a={x:p[0],y:p[1],'class':'ll','text-anchor':p[2]==='rot'?'middle':p[2]};
+    if(p[2]==='rot'){a.transform='rotate(-90 '+p[0]+' '+p[1]+')';svg.appendChild(sv('text',a,k[4]+(v?' · '+v:'')));return}
+    svg.appendChild(sv('text',a,k[4]));
+    if(v&&k[5]!==null){var b={x:p[0],y:p[1]+(k[5]||12),'class':'ll lv','text-anchor':p[2]};svg.appendChild(sv('text',b,v))}});
+  if(!REDUCE)live.forEach(function(k,i){
+    var sp=clamp(pace[k[0]]!=null?pace[k[0]]:8,3,14),tr=2.4,f=Math.min(1,tr/sp);
+    var c=sv('circle',{r:3.6,'class':'pk '+k[1],opacity:0});
+    var m=sv('animateMotion',{path:k[2],dur:sp+'s',repeatCount:'indefinite',keyPoints:'0;1;1',keyTimes:'0;'+f.toFixed(3)+';1',calcMode:'linear',begin:(-(i*1.3%sp)).toFixed(2)+'s'});
+    var o=sv('animate',{attributeName:'opacity',dur:sp+'s',repeatCount:'indefinite',values:'1;1;0;0',keyTimes:'0;'+Math.max(0.001,f-0.002).toFixed(3)+';'+f.toFixed(3)+';1',begin:(-(i*1.3%sp)).toFixed(2)+'s'});
+    c.appendChild(m);c.appendChild(o);svg.appendChild(c)});
+  function box(key,title,on,main,sub,hl,spk){var p=L.n[key];if(!p)return;var x=p[0],y=p[1],g=sv('g',{'class':'tap'+(SEL===key?' sel':''),tabindex:0,role:'button','aria-label':title+': '+main});
+    g.appendChild(sv('rect',{x:x,y:y,width:w,height:h,rx:12,'class':'bx'+(hl?' hl':'')+(visible&&FLASH[key]?' flash':'')}));
     g.appendChild(sv('circle',{cx:x+w-16,cy:y+20,r:5,'class':'dt '+(on===true?'on':on===false?'off':'')}));
     g.appendChild(sv('text',{x:x+14,y:y+25,'class':'t'},title));
     g.appendChild(sv('text',{x:x+14,y:y+53,'class':'m'},clip(main,ml)));
     if(sub)g.appendChild(sv('text',{x:x+14,y:y+74,'class':'s'},clip(sub,sl)));
+    var sd=sparkPath(spk,x+w-68,y+34,52,18);if(sd)g.appendChild(sv('path',{d:sd,fill:'none','class':'spl'}));
+    var go=function(){SEL=SEL===key?null:key;renderDiagram(derive(LAST));renderDgCard()};
+    g.onclick=go;g.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}};
     svg.appendChild(g)}
   var ver=(l.version||'').replace(/^Satoshi:/,'v');
   box('node','Bitcoin node',!st.stale,st.synced?'Block '+fmt(l.blocks):(st.pct==null?'–':st.pct.toFixed(1)+'% synced'),'Core '+ver+' · '+fmt((l.peersIn||0)+(l.peersOut||0))+' peers');
   box('tp','sv2-tp',st.stale?false:!!sv0.tp,!sv0.tp?'Down':st.synced?(st.t.length?'Building blocks':'Serving'):'Waiting for sync','Template Provider · '+dur(sv0.tpUptime));
   box('client','DMND client',st.stale?false:!!sv0.client,!sv0.client?'Down':st.decl?(d.activeId!=null?'Template #'+fmt(d.activeId):'Declaring'):'Connecting',fmt(sv0.miners)+' miner'+(sv0.miners===1?'':'s')+' · up '+dur(sv0.clientUptime),!!st.decl);
-  box('pool','DMND pool',st.k.decl?true:null,st.lat!=null?Math.round(st.lat)+' ms':st.k.decl?'Accepting':'–',st.lat!=null?'declaration latency':'external pool');
-  box('bitaxe','Bitaxe Gamma',bx?bx.online:null,bx&&bx.online?hrate(bx.hashrate):bx?'Offline':'–',bx&&bx.online?(bx.temp>0?bx.temp.toFixed(0)+' °C':'idle')+' · '+(bx.power!=null?bx.power.toFixed(1)+' W':'–'):'');
+  box('pool','DMND pool',st.k.decl?true:null,st.lat!=null?Math.round(st.lat)+' ms':st.k.decl?'Accepting':'–',st.lat!=null?'declaration latency':'external pool',false,series(hist,'dl',day));
+  box('bitaxe','Bitaxe Gamma',bx?bx.online:null,bx&&bx.online?hrate(bx.hashrate):bx?'Offline':'–',bx&&bx.online?(bx.temp>0?bx.temp.toFixed(0)+' °C':'idle')+' · '+(bx.power!=null?bx.power.toFixed(1)+' W':'–'):'',false,series(hist,'hr',day));
   var rs=l.rsk,ms=l.ms,mact=ms&&ms.acc&&ms.acc.active!=null?fmt(ms.acc.active)+' boosts':ms&&ms.next?'Connected':'–';
   box('rskj','RSK node',rs?!!rs.synced:null,rs?'Block '+fmt(rs.block):'Not reporting',rs?'Rootstock · '+fmt(rs.peers)+' peers':'optional');
   box('bridge','RSK bridge',rs&&rs.bridge!=null?rs.bridge:null,rs&&rs.bridge?(rs.mm&&rs.mm.work?'Sending work':'Waiting'):'Stopped','merge mining');
   box('ms','mempool.space',ms?true:null,mact,'public fee-boost feed');
   if(L===TALL)svg.style.maxWidth='400px',svg.style.margin='0 auto';
   host.appendChild(svg);
-
+  if(visible)FLASH={};
 }
+/* ---------- tap a box: detail card ---------- */
+function renderDgCard(){
+  var c=$('dgcard');c.textContent='';
+  if(!SEL||!LAST||!LAST.latest){c.hidden=true;return}
+  var st=derive(LAST),l=st.l,bx=st.bx,d=st.d,sv0=st.sv,rs=l.rsk,ms=l.ms,h=LAST.history,day=LAST.now-86400,rows=[],title='',pts=null,col='var(--accent)',unit='';
+  function R(k,v){rows.push([k,v==null?'–':v])}
+  if(SEL==='node'){title='Bitcoin node';R('Version',(l.version||'').replace(/^Satoshi:/,'v'));R('Block height',fmt(l.blocks));R('Peers',fmt((l.peersIn||0)+(l.peersOut||0))+' ('+fmt(l.peersIn)+' in, '+fmt(l.peersOut)+' out)');R('Mempool',fmt(l.mempoolTx)+' transactions');R('Uptime',dur(l.uptime));R('Chain data on disk',gb(l.sizeOnDisk));pts=series(h,'peers',day);unit='peers, last 24 h'}
+  else if(SEL==='tp'){title='sv2-tp (Template Provider)';R('Status',sv0.tp?'running':'down');R('Uptime',dur(sv0.tpUptime));R('Talks to Bitcoin Core over','IPC (unix socket)');R('Hands templates to','the DMND client')}
+  else if(SEL==='client'){title='DMND client';R('Status',sv0.client?'running':'down');R('Uptime',dur(sv0.clientUptime));R('Miners connected',fmt(sv0.miners));R('Template',d&&d.activeId!=null?'#'+fmt(d.activeId):null);R('Coinbase tag',d&&d.tag);R('Template cadence',declInterval(h)?'a new one every ~'+Math.round(declInterval(h))+' s':null);pts=series(h,'ad',day);unit='templates declared, last 24 h (resets on restart)'}
+  else if(SEL==='pool'){title='DMND pool';R('Declaration latency',st.lat!=null?Math.round(st.lat)+' ms':null);R('Bandwidth',d&&d.pool&&d.pool.bandwidth_bytes_per_sec!=null?hb(d.pool.bandwidth_bytes_per_sec)+'/s':null);R('Who picks the transactions','my node, not the pool');pts=series(h,'dl',day);unit='declaration latency (ms), last 24 h'}
+  else if(SEL==='bitaxe'){title='Bitaxe Gamma';col='var(--hash)';if(bx&&bx.online){R('Hashrate',hrate(bx.hashrate));R('ASIC temperature',bx.temp!=null?bx.temp.toFixed(0)+' °C':null);R('Power',bx.power!=null?bx.power.toFixed(1)+' W':null);R('Frequency',bx.frequency!=null?bx.frequency+' MHz':null);R('Voltage',bx.voltage!=null?Math.round(bx.voltage)+' mV':null);R('Shares',fmt(bx.accepted)+' accepted, '+fmt(bx.rejected)+' rejected');R('Best share',bx.bestDiff);R('Uptime',dur(bx.uptime))}else R('Status','offline or not monitored');pts=series(h,'hr',day);unit='hashrate (GH/s), last 24 h'}
+  else if(SEL==='rskj'){title='RSK node (RskJ)';if(rs){R('Status',rs.synced?'synced':'syncing');R('Block',fmt(rs.block));R('Latest block',rs.tipAge!=null?ago(rs.tipAge):null);R('Peers',fmt(rs.peers));R('Database',rs.dbBytes!=null?gb(rs.dbBytes):null)}else R('Status','not reporting')}
+  else if(SEL==='bridge'){title='RSK bridge';var mm=rs&&rs.mm||{};R('Service',rs&&rs.bridge==null?null:rs&&rs.bridge?'running':'stopped');R('Merge mining',mm.configured==null?null:mm.configured?'on':'off');R('Work for the miner',mm.work==null?null:mm.work?'yes':'no');R('RSK blocks found',fmt(mm.found));R('Job','turns an RSK block into a commitment in my coinbase')}
+  else if(SEL==='ms'){title='mempool.space';var n=ms&&ms.next,a=ms&&ms.acc||{};R('Projected next block',n?fmt(Math.round(n.fees))+' sats, '+fmt(n.tx)+' transactions':null);R('Fastest fee tier',ms&&ms.rec&&ms.rec.fastestFee!=null?ms.rec.fastestFee+' sat/vB':null);R('Active accelerations',a.active==null?null:fmt(a.active));R('Completed lately',a.done==null?null:fmt(a.done));R('Polled by the client','every 30 s')}
+  var hd=el('div','dch');hd.appendChild(el('b',null,title));var x=el('button','dcx','Close');x.onclick=function(){SEL=null;renderDiagram(derive(LAST));renderDgCard()};hd.appendChild(x);c.appendChild(hd);
+  var gr=el('div','dcg');rows.forEach(function(r){var q=el('div');q.appendChild(el('span','k',r[0]));q.appendChild(el('span','v',String(r[1])));gr.appendChild(q)});c.appendChild(gr);
+  if(pts&&pts.length>1){var sp=spark(pts,300,46);sp.setAttribute('class','sp big');sp.style.color=col;c.appendChild(sp);c.appendChild(el('div','note',unit))}
+  c.hidden=false;
+}
+/* ---------- events, toasts, hash counter ---------- */
+var TT=null;
+function toast(msg){var t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(TT);TT=setTimeout(function(){t.hidden=true},6000)}
+function detectEvents(l,bx){
+  var cur={b:l.blocks,a:l.dmnd&&l.dmnd.activeId,s:bx&&bx.online?bx.accepted:null,r:l.rsk?l.rsk.block:null},msg=[];
+  if(PREV){
+    if(cur.b!=null&&PREV.b!=null&&cur.b>PREV.b){FLASH.node=1;msg.push('New Bitcoin block '+fmt(cur.b))}
+    if(cur.a!=null&&PREV.a!=null&&cur.a!==PREV.a)FLASH.client=1;
+    if(cur.s!=null&&PREV.s!=null&&cur.s>PREV.s){FLASH.bitaxe=1;msg.push('Bitaxe: +'+(cur.s-PREV.s)+' share'+(cur.s-PREV.s===1?'':'s')+' accepted')}
+    if(cur.r!=null&&PREV.r!=null&&cur.r>PREV.r)FLASH.rskj=1;
+  }
+  PREV=cur;if(msg.length)toast(msg.join(' · '));
+}
+function hashesTried(s,st){
+  var up=st.sv&&st.sv.clientUptime;if(up==null||!st.bx||!st.bx.online)return null;
+  var since=s.now-up,h=s.history.filter(function(p){return p.hr!=null&&p.t>=since}),tot=0,i;
+  for(i=1;i<h.length;i++){var dt=h[i].t-h[i-1].t;if(dt>0&&dt<=1800)tot+=dt*(h[i].hr+h[i-1].hr)/2*1e9}
+  var last=h.length?h[h.length-1]:null;
+  return {base:tot,hr:st.bx.hashrate*1e9,t0:Date.now(),extra:last?Math.max(0,Math.min(s.now-last.t,1800)):0};
+}
+function tickText(){
+  var e=$('tick');if(!TICK){e.hidden=true;return}
+  var n=TICK.base+TICK.hr*(TICK.extra+(Date.now()-TICK.t0)/1000);
+  e.textContent='Hashes tried since the client started: '+hnum(n,2)+'. Each one is a lottery ticket for a block.';e.hidden=false;
+}
+setInterval(tickText,1000);
 function renderStory(st){
   var e=$('story'),l=st.l,sv0=st.sv,bx=st.bx,msg,cls='';
   if(st.stale){msg='No report from the laptop for '+ago(st.age).replace(' ago','')+'. It may be asleep or offline.';cls='bad'}
@@ -959,6 +1061,7 @@ function render(s){
   LAST=s;var l=s.latest;
   if(!l){$('meta').textContent='no data yet';$('statustxt').textContent='waiting';return}
   var st=derive(s),pill=$('status'),txt;
+  detectEvents(l,st.bx);TICK=hashesTried(s,st);tickText();
   if(st.stale){txt='Offline';pill.className='pill bad'}
   else if(st.hashing&&st.decl){txt='Mining';pill.className='pill ok'}
   else if(!st.synced){txt='Node syncing';pill.className='pill sync'}
@@ -967,7 +1070,7 @@ function render(s){
   $('statustxt').textContent=txt;
   $('meta').textContent='Bitcoin Core '+(l.version||'').replace(/^Satoshi:/,'v')+' · sv2-tp · DMND client · Bitaxe Gamma · updated '+ago(st.age);
   renderStory(st);renderDiagram(st);renderKpis(st,s);renderBlock(st);renderClient(st);renderBitaxe(st);
-  renderVs(s);renderMs(st,l);renderRsk(l);renderPrio(st,l);renderPolicy(l);renderMix(l);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
+  renderVs(s);renderMs(st,l);renderRsk(l);renderPrio(st,l);renderDgCard();renderPolicy(l);renderMix(l);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
   var h=s.history,day=s.now-86400;
   chart($('c7'),series(h,'tf',day).map(function(p){return[p[0],p[1]/1e6]}),{fmt:function(v){return v.toFixed(2)}});
   chart($('c9'),series(h,'ad',day),{fmt:function(v){return fmt(Math.round(v))},zero:true});
