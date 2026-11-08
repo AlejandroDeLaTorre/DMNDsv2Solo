@@ -394,7 +394,6 @@ h2.sec .tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spaci
 .prog .big{font-size:26px;font-weight:700}
 footer{margin-top:28px;color:var(--mute);font-size:12px}
 @media (max-width:480px){.kpi .v{font-size:21px}h1{font-size:22px}.big2{font-size:26px}}
-.chips{display:flex;flex-direction:column;gap:6px;margin:10px 0 0}.chip{display:flex;align-items:center;gap:8px;font-size:13px;border:1px solid var(--line);border-radius:10px;padding:6px 10px}.chip i{width:8px;height:8px;border-radius:50%;background:var(--bar)}.chip i.on{background:var(--ok,#2e9d62)}.chip span{color:var(--mute);margin-left:auto}
 .sub3{font-size:16px;margin:24px 0 4px}
 .vsr{padding:12px 0;border-bottom:1px solid var(--line)}
 .vsr .r{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -582,15 +581,18 @@ var WIDE={W:980,H:336,bw:180,bh:88,
          ['rsk','tp','M190 254 L270 254',[230,246,'middle'],'RPC'],
          ['bridge','tp','M450 236 L500 236 L500 150 L560 150 L560 128',[492,200,'end'],'RSK work'],
          ['ms','tp','M790 244 L750 244 L750 118 L710 118',[742,190,'end'],'Boosts']]};
-var TALL={W:360,H:700,bw:220,bh:84,
-  n:{node:[120,36],tp:[120,176],client:[120,316],pool:[120,476],bitaxe:[120,606]},
-  regions:[[100,8,252,400]],labels:[[112,26,'start','THIS LAPTOP'],[120,468,'start','INTERNET'],[120,598,'start','HOME NETWORK']],
+var TALL={W:360,H:1140,bw:220,bh:84,
+  n:{node:[120,36],tp:[120,176],client:[120,316],pool:[120,476],bitaxe:[120,606],rskj:[120,760],bridge:[120,900],ms:[120,1040]},
+  regions:[[100,8,252,400],[100,732,252,264]],labels:[[112,26,'start','THIS LAPTOP'],[120,468,'start','INTERNET'],[120,598,'start','HOME NETWORK'],[112,750,'start','THIS LAPTOP, RSK'],[120,1032,'start','INTERNET']],
   links:[['ipc','tp','M230 120 L230 176',[238,152,'start'],'IPC'],
          ['tpl','tp','M230 260 L230 316',[238,292,'start'],'Templates'],
          ['decl','tp','M205 400 L205 476',[197,442,'end'],'Declare jobs'],
          ['shares','hs','M255 400 L255 476',[263,442,'start'],'Shares'],
          ['shares','hs','M120 660 L40 660 L40 344 L120 344',[30,500,'rot'],'Shares'],
-         ['jobs','tp','M120 372 L70 372 L70 632 L120 632',[84,500,'rot'],'Jobs']]};
+         ['jobs','tp','M120 372 L70 372 L70 632 L120 632',[84,500,'rot'],'Jobs'],
+         ['rsk','tp','M230 844 L230 900',[238,876,'start'],'RPC'],
+         ['bridge','tp','M340 942 L354 942 L354 372 L340 372',[348,660,'rot'],'RSK work'],
+         ['ms','tp','M120 1082 L12 1082 L12 328 L120 328',[20,1074,'start'],'Boosts']]};
 function renderDiagram(st){
   var host=$('diagram');host.textContent='';
   var L=host.clientWidth>=680?WIDE:TALL,svg=sv('svg',{viewBox:'0 0 '+L.W+' '+L.H,'class':'dg',role:'img','aria-label':'Live diagram of the Stratum V2 mining stack'});
@@ -622,10 +624,7 @@ function renderDiagram(st){
   box('ms','mempool.space',ms?true:null,mact,'public fee-boost feed');
   if(L===TALL)svg.style.maxWidth='400px',svg.style.margin='0 auto';
   host.appendChild(svg);
-  if(L===TALL){var ch=el('div','chips');
-    [['RSK node',rs?(rs.synced?'synced, block '+fmt(rs.block):'syncing'):'not reporting',rs&&rs.synced],['RSK bridge',rs&&rs.bridge?(rs.mm&&rs.mm.work?'sending work':'waiting'):'stopped',rs&&rs.bridge],['mempool.space',mact,!!ms]].forEach(function(q){
-      var c=el('div','chip');var d=el('i',q[2]?'on':'');c.appendChild(d);c.appendChild(el('b',null,q[0]));c.appendChild(el('span',null,q[1]));ch.appendChild(c)});
-    host.appendChild(ch)}
+
 }
 function renderStory(st){
   var e=$('story'),l=st.l,sv0=st.sv,bx=st.bx,msg,cls='';
