@@ -420,6 +420,68 @@ def mempool_space():
     return {"next": nxt, "rec": numeric_scalars(rec, 6) if isinstance(rec, dict) else None, "acc": acc}
 
 
+RSK_RPC = os.environ.get("RSK_RPC_URL", "http://127.0.0.1:4444")
+
+
+def rsk_rpc(method, params=None):
+    req = urllib.request.Request(
+        RSK_RPC, data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params or []}).encode(),
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=4) as r:
+            return json.load(r).get("result")
+    except Exception:
+        return None
+
+
+def unit_active(name):
+    try:
+        out = subprocess.run(["systemctl", "--user", "is-active", name], capture_output=True, text=True, timeout=5)
+        return out.stdout.strip() == "active"
+    except Exception:
+        return None
+
+
+def rsk_status():
+    """Local RSK node and merge-mining bridge. Returns None when no RSK node answers.
+
+    Aggregates only: heights, peer count, flags and counters. No addresses, hashes or payloads.
+    """
+    height = rsk_rpc("eth_blockNumber")
+    if height is None:
+        return None
+    out = {"online": True, "block": int(height, 16), "bridge": unit_active("rsk-bridge.service")}
+    syncing = rsk_rpc("eth_syncing")
+    out["synced"] = syncing is False
+    peers = rsk_rpc("net_peerCount")
+    if isinstance(peers, str):
+        out["peers"] = int(peers, 16)
+    tip = rsk_rpc("eth_getBlockByNumber", ["latest", False])
+    if isinstance(tip, dict) and tip.get("timestamp"):
+        out["tipAge"] = max(0, int(time.time()) - int(tip["timestamp"], 16))
+    try:
+        cfg = load_env_file(DMND_ENV)
+        raw = client_get("/api/merge-mining/status", cfg.get("API_TX_TOKEN"))
+        data = unwrap(raw) if raw is not None else None
+        if isinstance(data, dict):
+            act = data.get("activity") if isinstance(data.get("activity"), dict) else {}
+            out["mm"] = {
+                "configured": data.get("configured") is True,
+                "work": act.get("work_available") is True,
+                "found": act.get("proofs_found"),
+                "pending": act.get("pending_proofs"),
+            }
+    except Exception:
+        pass
+    try:
+        out["dbBytes"] = sum(
+            os.path.getsize(os.path.join(d, f))
+            for d, _, files in os.walk(os.path.expanduser("~/.rsk/mainnet/database")) for f in files)
+    except Exception:
+        pass
+    return out
+
+
 def load_env_file(path):
     cfg = {}
     with open(path) as f:
@@ -708,6 +770,7 @@ def main():
         "txtypes": tx_types(recent) if chain.get("initialblockdownload") is False else None,
         "final": final_templates(),
         "ms": mempool_space(),
+        "rsk": rsk_status(),
         "dmnd": dmnd_client(chain.get("initialblockdownload") is False),
     }
     req = urllib.request.Request(

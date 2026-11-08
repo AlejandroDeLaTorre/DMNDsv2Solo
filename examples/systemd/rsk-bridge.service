@@ -1,0 +1,13 @@
+[Unit]
+Description=DMND RSK merge-mining bridge
+After=rskj.service dmnd-client.service
+Wants=rskj.service dmnd-client.service
+
+[Service]
+EnvironmentFile=%h/.config/rsk-bridge.env
+ExecStart=%h/bitcoin/rsk/bridge-src/target/release/demand-rsk-op-return-bridge
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

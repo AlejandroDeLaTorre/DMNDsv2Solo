@@ -1,0 +1,22 @@
+[Unit]
+Description=RskJ (Rootstock node) for RSK merge mining
+After=network-online.target
+
+[Service]
+# Memory is shared with Bitcoin Core on this machine, so the heap and the whole service are capped.
+ExecStart=%h/bitcoin/rsk/jre/bin/java -Xms1G -Xmx3G \
+  -Drsk.conf.file=%h/.rsk/rsk.conf \
+  -Drpc.providers.web.http.bind_address=127.0.0.1 \
+  -Drpc.providers.web.http.hosts.0=localhost -Drpc.providers.web.http.hosts.1=127.0.0.1 \
+  -Drpc.modules.mnr.version=1.0 -Drpc.modules.mnr.enabled=true -Dminer.server.enabled=true \
+  -cp %h/bitcoin/rsk/download/rskj-core-9.0.4-VETIVER-all.jar co.rsk.Start
+MemoryHigh=4G
+MemoryMax=4500M
+OOMScoreAdjust=800
+Nice=10
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=120
+
+[Install]
+WantedBy=default.target

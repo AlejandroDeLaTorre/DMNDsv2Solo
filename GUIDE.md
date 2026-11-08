@@ -202,12 +202,30 @@ Logs: `journalctl --user -u dmnd-client -f`
 
 ---
 
+## Optional: also mine RSK (merge mining)
+
+The same hashes can also count toward [RSK](https://rootstock.io), a Bitcoin sidechain. A small RSK node gives the DMND client a commitment that goes into your coinbase, so it costs no extra hash power. At Bitaxe size an RSK block is very unlikely: treat this as a demo of the feature, not income.
+
+You need about 3 GB of spare RAM and a few GB of disk on top of the Bitcoin node, plus Java 17.
+
+1. **Get RskJ.** Download the release jar and `SHA256SUMS.asc` from https://github.com/rsksmart/rskj/releases and verify them. Check *who signed* the file, and compare that key with the one documented in the release notes.
+2. **Sync with the signed bootstrap, not from genesis.** Running `java ... co.rsk.Start --import` once downloads a signed database snapshot and had me at the chain tip within a couple of hours. Syncing from genesis would have taken two weeks or more. `--import` wipes the database each time, so never put it in a service.
+3. **Run it as a service** with [`examples/systemd/rskj.service`](examples/systemd/rskj.service). It needs `-Drpc.modules.mnr.enabled=true` and `-Dminer.server.enabled=true`, and the RPC bound to 127.0.0.1. Check it: `curl -s -X POST -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_syncing","params":[]}' http://127.0.0.1:4444` should return `false`.
+4. **Turn on merge mining in the client.** Add `API_SECRET` (any long random string) and `API_BIND_ADDRESS=127.0.0.1` to `~/.config/dmnd.env`, then restart the client once. A non-empty `API_SECRET` is what enables it.
+5. **Run the bridge.** Build https://github.com/dmnd-pool/demand-rsk-op-return-bridge (`cargo build --release`), copy [`examples/rsk-bridge.env.example`](examples/rsk-bridge.env.example) to `~/.config/rsk-bridge.env`, and install [`examples/systemd/rsk-bridge.service`](examples/systemd/rsk-bridge.service).
+6. **Check:** the bridge log says `queued RSK merge-mining payload` every ~30 s, and the client's `/api/merge-mining/status` (Bearer `API_TX_TOKEN`) shows `configured: true` and `work_available: true`.
+
+The dashboard's **Overview** tab picks this up by itself.
+
+---
+
 ## Things that tripped me up
 
 - **Release binary loop.** If the client keeps reconnecting every ~30 s and the miner shows "Not connected", build from source (see step 3).
 - **Don't restart the client over and over.** Several restarts within an hour made the pool reject custom jobs (`SetCustomMiningJobError`) for ~6 minutes. It recovers on its own, so wait before deciding something is broken.
 - **Laptop sleep stops everything.** Disable suspend, or use a machine that stays on.
 - **Keep your token secret.** It's both your pool identity and the Bitaxe password. Don't paste it in chats or commit it.
+- **After a client restart the pool may reject jobs for ~10 minutes.** Adding `API_SECRET` means one more restart, so batch your config changes.
 - **Port 3001 is for your LAN only.** Never expose the client dashboard to the internet.
 
 ## Links

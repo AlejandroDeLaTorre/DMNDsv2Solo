@@ -16,6 +16,7 @@ Bitcoin Core ──IPC──▶ sv2-tp ──SV2──▶ dmnd-client ──SV1�
 | I want to…                                   | Read                       |
 |----------------------------------------------|----------------------------|
 | Set up the node + sv2-tp + DMND + Bitaxe     | **[GUIDE.md](GUIDE.md)**   |
+| Also merge-mine RSK (optional)               | [GUIDE.md](GUIDE.md#optional-also-mine-rsk-merge-mining) |
 | Add the public dashboard on top              | [Dashboard](#dashboard) below |
 | Use an AI assistant to help me set it up     | [Using an AI assistant](#using-an-ai-assistant) |
 
@@ -31,13 +32,14 @@ Assistant instructions live in [AGENTS.md](AGENTS.md) (Claude Code reads it thro
 
 ## Dashboard
 
-A Cloudflare Worker serves the page; a Python script on your node pushes aggregate stats to it every 2 minutes. No Node.js or wrangler needed, and the free Cloudflare plan is enough.
+A Cloudflare Worker serves a five-tab page (Overview, My block, Miner, Market, Nodes); the Overview shows the live stack and the RSK merge-mining status. The Worker serves the page; a Python script on your node pushes aggregate stats to it every 2 minutes. No Node.js or wrangler needed, and the free Cloudflare plan is enough.
 
 | File | What it does |
 |---|---|
 | `collector.py` | Runs on the node. Reads `bitcoin-cli`, Bitcoin Core RPC, the DMND client API, the Bitaxe API and mempool.space's public API (a few small requests every 2 minutes, no key), then pushes **aggregates only** (no txids, addresses, IPs or tokens). |
 | `worker.js` | The Worker. Serves the page at `/`, stats at `/api/stats`, and accepts pushes at `POST /api/push` (needs the write key). The page HTML is inside it. |
 | `template_watch.py` | Optional, runs on the node. Saves the last template the DMND client declared for each block height, so the "my template vs the real block" comparison is exact. |
+| `examples/systemd/rskj.service`, `rsk-bridge.service` | Optional RSK merge mining. `collector.py` reports the RSK node and bridge as counts and flags only. |
 | `deploy.sh` | Uploads the Worker through the Cloudflare API. Creates the KV store and a write key on first run. |
 | `examples/` | Example config files and systemd units to copy. |
 

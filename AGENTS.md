@@ -19,12 +19,13 @@ This repo has two parts:
 - **Repeated client restarts** within an hour make the pool reject custom jobs (`SetCustomMiningJobError`) and disconnect for ~6 minutes. It recovers on its own: wait at least 10 minutes before concluding a change broke something, and don't restart in a loop.
 - **sv2-tp starts before the node socket exists** → it fails. The systemd unit in GUIDE.md waits for `~/.bitcoin/node.sock`.
 - **Laptop suspend** stops everything. Check the power settings.
+- **RSK merge mining** (optional, see GUIDE.md): enabled by a non-empty `API_SECRET` in `~/.config/dmnd.env`. Sync RskJ with `--import` once (it wipes the DB, so never in a service). Do not print `API_SECRET` or `rsk-bridge.env`. The merge-mining status endpoint takes `API_TX_TOKEN`, not `API_SECRET`.
 - The client listens on `0.0.0.0:3001` for its local dashboard/API; keep it off the public internet.
 
 ## Working on the dashboard code
 
 - **No build step and no dependencies.** Python 3 standard library only; the Worker is one plain JS file.
-- `worker.js` holds the whole page in `const PAGE = String.raw\`...\``. Inside the page, **never use backticks or `${`**. Use string concatenation and single quotes in the page's JS.
+- The page has five tabs (`p-over`, `p-block`, `p-miner`, `p-market`, `p-nodes`); new sections go in the tab where a reader would look for them. `worker.js` holds the whole page in `const PAGE = String.raw\`...\``. Inside the page, **never use backticks or `${`**. Use string concatenation and single quotes in the page's JS, and never put an apostrophe inside a single-quoted string (write \u2019 or reword).
 - **Privacy rule: publish aggregates only.** Never send txids, addresses, IPs, hostnames, peer details, tokens, pool usernames or wallet data to the Worker. The Worker's `sanitize*` functions whitelist and clamp every field; add new fields there, or they are dropped. Pushes over 40,000 bytes are rejected.
 - `collector.py` must keep working when parts are missing (no Bitaxe, no DMND client, no RPC credentials): wrap each source and return `None` on failure.
 - Config comes only from `~/.config/btc-dashboard.env`, `~/.config/dmnd.env` and `~/.config/cloudflare.env`. Never hard-code personal paths, IPs, account IDs or keys.

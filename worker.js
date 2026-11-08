@@ -5,7 +5,6 @@
 // State lives in one KV key ("state") so each push costs a single KV write.
 
 const MAX_POINTS = 4000;
-const POOL_START_BLOCK = 951552; // 29 May 2026, start of the reference pool review window
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const str = (v) => (typeof v === "string" ? v.slice(0, 64) : null);
@@ -88,6 +87,16 @@ function sanitizeMs(m) {
     next: n, rec: numMap(m.rec, 6),
     acc: { active: num(a.active), done: num(a.done), feeDelta: num(a.feeDelta), bid: num(a.bid),
            span: num(a.span), pools: num(a.pools), minedBy: mined },
+  };
+}
+
+function sanitizeRsk(r) {
+  if (!r || typeof r !== "object" || r.online !== true) return null;
+  const m = r.mm && typeof r.mm === "object" ? r.mm : null;
+  return {
+    online: true, block: num(r.block), bridge: bool(r.bridge), synced: bool(r.synced),
+    peers: num(r.peers), tipAge: num(r.tipAge), dbBytes: num(r.dbBytes),
+    mm: m ? { configured: bool(m.configured), work: bool(m.work), found: num(m.found), pending: num(m.pending) } : null,
   };
 }
 
@@ -187,6 +196,7 @@ function sanitize(body) {
     txtypes: sanitizeTxTypes(body.txtypes),
     final: sanitizeFinal(body.final),
     ms: sanitizeMs(body.ms),
+    rsk: sanitizeRsk(body.rsk),
   };
 }
 
@@ -259,7 +269,7 @@ async function handlePush(request, env) {
 
 async function handleStats(env) {
   const state = (await env.KV.get("state", "json")) || { latest: null, history: [] };
-  return new Response(JSON.stringify({ ...state, now: Math.floor(Date.now() / 1000), poolStart: POOL_START_BLOCK }), {
+  return new Response(JSON.stringify({ ...state, now: Math.floor(Date.now() / 1000) }), {
     headers: { "content-type": "application/json", "cache-control": "public, max-age=15" },
   });
 }
@@ -305,7 +315,8 @@ h1{font-size:26px;margin:0;letter-spacing:-.015em;line-height:1.2}
 .pill.bad{color:var(--bad)}.pill.bad i{background:var(--bad)}
 @keyframes pulse{50%{opacity:.35}}
 .sub{color:var(--mute);font-size:13px;margin-top:4px}
-nav{display:flex;gap:6px;margin:0 0 16px}
+nav{display:flex;gap:6px;margin:0 0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+nav button{white-space:nowrap;flex:none}
 nav button{font:inherit;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--mute);cursor:pointer}
 nav button[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
@@ -410,11 +421,14 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
   <span class="pill" id="status"><i></i><span id="statustxt">&hellip;</span></span>
 </header>
 <nav role="tablist">
-  <button role="tab" id="t-status" aria-selected="true">Live</button>
-  <button role="tab" id="t-pools" aria-selected="false">Pools</button>
+  <button role="tab" id="t-over" aria-selected="true">Overview</button>
+  <button role="tab" id="t-block" aria-selected="false">My block</button>
+  <button role="tab" id="t-miner" aria-selected="false">Miner</button>
+  <button role="tab" id="t-market" aria-selected="false">Market</button>
+  <button role="tab" id="t-nodes" aria-selected="false">Nodes</button>
 </nav>
 
-<section id="p-status">
+<section id="p-over">
   <div class="card hero">
     <p class="story" id="story">loading&hellip;</p>
     <div id="diagram"></div>
@@ -426,6 +440,12 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
   </div>
   <div class="kpis" id="kpis"></div>
 
+  <h2 class="sec">Also mining RSK <span class="tag t">Merge mining</span></h2>
+  <p class="lead" id="rsknote"></p>
+  <div class="grid" id="rsk"></div>
+</section>
+
+<section id="p-block" hidden>
   <h2 class="sec">The block I&rsquo;m mining <span class="tag t">Job Declaration</span></h2>
   <p class="lead" id="tpnote"></p>
   <div class="two" id="blockviz"></div>
@@ -433,14 +453,13 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
     <div class="card chart"><h3>Fees in the declared block (million sats)</h3><div id="c7"></div></div>
     <div class="card chart"><h3>Templates declared to the pool</h3><div id="c9"></div></div>
   </div>
-  <h3 class="sub3">My template vs the block that was mined</h3>
+  <h2 class="sec">My template vs the block that was mined</h2>
   <p class="lead" id="vsnote"></p>
   <div class="kpis" id="vsk"></div>
   <div class="card" id="vs"></div>
-  <h3 class="sub3">What mempool.space sees <span class="tag">public data</span></h3>
-  <p class="lead" id="msnote"></p>
-  <div class="charts" id="msg"></div>
+</section>
 
+<section id="p-miner" hidden>
   <h2 class="sec">DMND client <span class="tag t">Stratum V2 proxy</span></h2>
   <p class="lead">Runs on this laptop. Speaks Stratum V1 to the Bitaxe, Stratum V2 to the pool, and Template Distribution to sv2-tp.</p>
   <div class="grid" id="cpg"></div>
@@ -461,6 +480,21 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
     <div class="card"><div class="k">Best shares found</div><div class="feed" id="sf"></div></div>
     <div class="card"><div class="k">Odds of finding a block</div><div class="grid" id="odds" style="grid-template-columns:repeat(2,1fr);margin-bottom:4px"></div><div class="note" id="oddsnote"></div></div>
   </div>
+</section>
+
+<section id="p-market" hidden>
+  <h2 class="sec">What mempool.space sees <span class="tag t">Public data</span></h2>
+  <p class="lead" id="msnote"></p>
+  <div class="charts" id="msg"></div>
+
+  <h2 class="sec">Fee market</h2>
+  <p class="lead" id="fmnote"></p>
+  <div class="grid" id="fm"></div>
+  <div class="card" id="fmb" hidden></div>
+
+  <h2 class="sec">Latest blocks</h2>
+  <p class="lead" id="rbnote"></p>
+  <div class="grid" id="rb"></div>
 
   <h2 class="sec">What my node accepts <span class="tag t">Relay policy</span></h2>
   <p class="lead">With Stratum V2 my own node picks the transactions in my block, so its relay policy decides what can be mined. Bitcoin Core does not allow truly non-standard transactions on mainnet, but its defaults already accept most edge cases.</p>
@@ -469,40 +503,22 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
     <div class="card"><div class="k">What is in my mempool</div><div id="mix"></div></div>
   </div>
   <div class="card"><div class="k">Transaction types in recent blocks</div><div id="mixb" style="overflow-x:auto"></div></div>
-
-  <div class="under">
-    <h2 class="sec">Bitcoin node <span class="tag n">Under the hood</span></h2>
-    <p class="lead">Bitcoin Core in multiprocess mode, pruned, feeding sv2-tp over IPC.</p>
-    <div class="card prog">
-      <div class="row"><span class="big" id="pct">&ndash;</span><span class="sub" id="pdetail"></span></div>
-      <div class="bar"><i id="barfill"></i></div>
-      <div class="sub" id="pmore"></div>
-    </div>
-    <div class="grid" id="stats"></div>
-    <h2 class="sec" style="font-size:15px">Fee market</h2>
-    <p class="lead" id="fmnote"></p>
-    <div class="grid" id="fm"></div>
-    <div class="card" id="fmb" hidden></div>
-    <h2 class="sec" style="font-size:15px">Latest blocks</h2>
-    <p class="lead" id="rbnote"></p>
-    <div class="grid" id="rb"></div>
-    <div class="charts">
-      <div class="card chart"><h3>Blocks validated</h3><div id="c1"></div></div>
-      <div class="card chart"><h3>Sync speed (blocks/min)</h3><div id="c2"></div></div>
-      <div class="card chart"><h3>Connected peers</h3><div id="c3"></div></div>
-      <div class="card chart"><h3>Disk used (GB)</h3><div id="c4"></div></div>
-    </div>
-  </div>
 </section>
 
-<section id="p-pools" hidden>
-  <div class="card">
-    <div class="big2" id="poolpct">&ndash;</div>
-    <div class="bar"><i id="poolbar"></i></div>
-    <div class="sub" id="pooltxt"></div>
+<section id="p-nodes" hidden>
+  <h2 class="sec">Bitcoin node <span class="tag n">Bitcoin Core</span></h2>
+  <p class="lead">Bitcoin Core in multiprocess mode, pruned, feeding sv2-tp over IPC.</p>
+  <div class="card prog">
+    <div class="row"><span class="big" id="pct">&ndash;</span><span class="sub" id="pdetail"></span></div>
+    <div class="bar"><i id="barfill"></i></div>
+    <div class="sub" id="pmore"></div>
   </div>
-  <div class="card empty" style="margin-top:12px">
-    Pool hashrate shares are computed from the coinbase of recent blocks. Not wired up yet.
+  <div class="grid" id="stats"></div>
+  <div class="charts">
+    <div class="card chart"><h3>Blocks validated</h3><div id="c1"></div></div>
+    <div class="card chart"><h3>Sync speed (blocks/min)</h3><div id="c2"></div></div>
+    <div class="card chart"><h3>Connected peers</h3><div id="c3"></div></div>
+    <div class="card chart"><h3>Disk used (GB)</h3><div id="c4"></div></div>
   </div>
 </section>
 
@@ -681,10 +697,23 @@ function renderVs(s){
     box.appendChild(r)});
   box.appendChild(el('div','note','My side is the last template my client declared before the block was found, recorded within 2 seconds. Its age is how long it had been in use when the block arrived. A real block can also include transactions its miner received privately or was paid to add outside the mempool.'));
 }
+/* ---------- RSK merge mining ---------- */
+function renderRsk(l){
+  var g=$('rsk'),r=l.rsk;g.textContent='';
+  $('rsknote').textContent='Merge mining lets the same hashes also count toward RSK, a Bitcoin sidechain. A small RSK node on this laptop hands the DMND client a commitment that goes into my coinbase, so it costs no extra hash power. At my size an RSK block is very unlikely, so this shows the feature working and is not income.';
+  if(!r){g.appendChild(el('div','card empty','The RSK node is not reporting.'));return}
+  var mm=r.mm||{};
+  g.appendChild(stat('RSK node',r.synced?'Synced':'Syncing',r.block!=null?'block '+fmt(r.block):'','t'));
+  g.appendChild(stat('Latest block age',r.tipAge==null?'–':ago(r.tipAge),r.peers!=null?fmt(r.peers)+' peers':''));
+  g.appendChild(stat('Bridge',r.bridge==null?'–':r.bridge?'Running':'Stopped','sends RSK work to the client',r.bridge?'t':''));
+  g.appendChild(stat('Work for the miner',mm.work==null?'–':mm.work?'Yes':'No',mm.configured?'merge mining is on':'merge mining is off'));
+  g.appendChild(stat('RSK blocks found',mm.found==null?'–':fmt(mm.found),mm.pending?fmt(mm.pending)+' proofs pending':'none expected soon'));
+  g.appendChild(stat('RSK database',r.dbBytes==null?'–':gb(r.dbBytes),'RSK chain data on this laptop'));
+}
 /* ---------- mempool.space ---------- */
 function renderMs(st,l){
   var g=$('msg'),nt=$('msnote'),m=l.ms;g.textContent='';
-  nt.textContent='mempool.space is the most used public view of the Bitcoin mempool. These cards line it up with what my own node builds, and show the paid fee-boost market that the DMND client reads.';
+  nt.textContent='How the next block my node builds compares with the most used public mempool view, and the paid fee-boost market the DMND client reads.';
   if(!m){g.appendChild(el('div','card empty','No mempool.space data yet'));return}
   var n=m.next,d=st.decl||(st.t&&st.t[0]),c1=el('div','card');
   c1.appendChild(el('div','k','Next block: my template vs mempool.space'));
@@ -911,7 +940,7 @@ function render(s){
   $('statustxt').textContent=txt;
   $('meta').textContent='Bitcoin Core '+(l.version||'').replace(/^Satoshi:/,'v')+' · sv2-tp · DMND client · Bitaxe Gamma · updated '+ago(st.age);
   renderStory(st);renderDiagram(st);renderKpis(st,s);renderBlock(st);renderClient(st);renderBitaxe(st);
-  renderVs(s);renderMs(st,l);renderPolicy(l);renderMix(l);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
+  renderVs(s);renderMs(st,l);renderRsk(l);renderPolicy(l);renderMix(l);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
   var h=s.history,day=s.now-86400;
   chart($('c7'),series(h,'tf',day).map(function(p){return[p[0],p[1]/1e6]}),{fmt:function(v){return v.toFixed(2)}});
   chart($('c9'),series(h,'ad',day),{fmt:function(v){return fmt(Math.round(v))},zero:true});
@@ -923,13 +952,14 @@ function render(s){
   chart($('c2'),speed(h),{fmt:function(v){return v.toFixed(0)},zero:true});
   chart($('c3'),series(h,'peers'),{fmt:function(v){return v.toFixed(0)},zero:true});
   chart($('c4'),series(h,'disk').map(function(p){return[p[0],p[1]/1e9]}),{fmt:function(v){return v.toFixed(1)}});
-  var ps=s.poolStart,pp=Math.max(0,Math.min(100,((l.blocks||0)/ps)*100));
-  if(l.blocks>=ps){$('poolpct').textContent='Window reached';$('poolbar').style.width='100%';$('pooltxt').textContent='Block data from '+fmt(ps)+' onward is on the node.'}
-  else{$('poolpct').textContent=pp.toFixed(1)+'% to window start';$('poolbar').style.width=pp+'%';$('pooltxt').textContent='The review window begins at block '+fmt(ps)+'.'}
 }
 function load(){fetch('/api/stats').then(function(r){return r.json()}).then(render).catch(function(){$('meta').textContent='could not load stats'})}
-function tab(n){['status','pools'].forEach(function(k){$('p-'+k).hidden=k!==n;$('t-'+k).setAttribute('aria-selected',k===n)})}
-$('t-status').onclick=function(){tab('status')};$('t-pools').onclick=function(){tab('pools')};
+var TABS=['over','block','miner','market','nodes'];
+function tab(n,keep){TABS.forEach(function(k){$('p-'+k).hidden=k!==n;$('t-'+k).setAttribute('aria-selected',k===n)});
+  if(!keep){try{history.replaceState(null,'','#'+n)}catch(e){}}
+  if(LAST&&LAST.latest)renderDiagram(derive(LAST))}
+TABS.forEach(function(k){$('t-'+k).onclick=function(){tab(k)}});
+var h0=(location.hash||'').slice(1);if(TABS.indexOf(h0)>=0)tab(h0,true);
 var rt=null;window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(function(){if(LAST&&LAST.latest)renderDiagram(derive(LAST))},150)});
 load();setInterval(load,30000);
 })();
