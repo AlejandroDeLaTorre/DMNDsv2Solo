@@ -394,6 +394,7 @@ h2.sec .tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spaci
 .prog .big{font-size:26px;font-weight:700}
 footer{margin-top:28px;color:var(--mute);font-size:12px}
 @media (max-width:480px){.kpi .v{font-size:21px}h1{font-size:22px}.big2{font-size:26px}}
+.chips{display:flex;flex-direction:column;gap:6px;margin:10px 0 0}.chip{display:flex;align-items:center;gap:8px;font-size:13px;border:1px solid var(--line);border-radius:10px;padding:6px 10px}.chip i{width:8px;height:8px;border-radius:50%;background:var(--bar)}.chip i.on{background:var(--ok,#2e9d62)}.chip span{color:var(--mute);margin-left:auto}
 .sub3{font-size:16px;margin:24px 0 4px}
 .vsr{padding:12px 0;border-bottom:1px solid var(--line)}
 .vsr .r{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -453,6 +454,10 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
     <div class="card chart"><h3>Fees in the declared block (million sats)</h3><div id="c7"></div></div>
     <div class="card chart"><h3>Templates declared to the pool</h3><div id="c9"></div></div>
   </div>
+  <h2 class="sec">Prioritised transactions <span class="tag t">My choice</span></h2>
+  <p class="lead" id="prnote"></p>
+  <div class="grid" id="prg"></div>
+
   <h2 class="sec">My template vs the block that was mined</h2>
   <p class="lead" id="vsnote"></p>
   <div class="kpis" id="vsk"></div>
@@ -558,24 +563,28 @@ function derive(s){
   var hashing=!!(bx&&bx.online&&bx.hashrate>0);
   var lat=d&&d.pool&&d.pool.declaration_latency_ms!=null?d.pool.declaration_latency_ms:null;
   var k={ipc:!stale&&!!sv0.ipc,tpl:!stale&&!!sv0.tp&&synced&&t.length>0,decl:!stale&&!!decl,
-         shares:!stale&&hashing&&sv0.miners>0,jobs:!stale&&sv0.miners>0&&!!decl};
-  var dead={ipc:!sv0.ipc,tpl:!sv0.tp,decl:!sv0.client,shares:!sv0.client||(bx&&!bx.online),jobs:!sv0.client};
+         shares:!stale&&hashing&&sv0.miners>0,jobs:!stale&&sv0.miners>0&&!!decl,
+         rsk:!stale&&!!(l.rsk&&l.rsk.synced),bridge:!stale&&!!(l.rsk&&l.rsk.bridge&&l.rsk.mm&&l.rsk.mm.work),ms:!stale&&!!(l.ms&&l.ms.next)};
+  var dead={rsk:!l.rsk,bridge:!(l.rsk&&l.rsk.bridge),ms:!l.ms,ipc:!sv0.ipc,tpl:!sv0.tp,decl:!sv0.client,shares:!sv0.client||(bx&&!bx.online),jobs:!sv0.client};
   return {l:l,age:age,stale:stale,synced:synced,pct:l.progress==null?null:l.progress*100,sv:sv0,bx:bx,d:d,t:t,decl:decl,hashing:hashing,lat:lat,k:k,dead:dead};
 }
 
 /* ---------- live SV2 diagram ---------- */
-var WIDE={W:980,H:310,bw:180,bh:88,
-  n:{node:[10,40],tp:[270,40],client:[530,40],pool:[790,40],bitaxe:[530,210]},
-  region:[0,8,722,136],rl:[14,28,'start','THIS LAPTOP'],pl:[790,28,'start','INTERNET'],bl:[520,258,'end','HOME NETWORK'],
+var WIDE={W:980,H:336,bw:180,bh:88,
+  n:{node:[10,40],tp:[270,40],client:[530,40],pool:[790,40],bitaxe:[530,210],rskj:[10,210],bridge:[270,210],ms:[790,210]},
+  regions:[[0,8,722,136],[0,176,462,136]],labels:[[14,28,'start','THIS LAPTOP'],[790,28,'start','INTERNET'],[14,196,'start','THIS LAPTOP, RSK MERGE MINING'],[790,198,'start','INTERNET'],[530,320,'start','HOME NETWORK']],
   links:[['ipc','tp','M190 84 L270 84',[230,76,'middle'],'IPC'],
          ['tpl','tp','M450 84 L530 84',[490,76,'middle'],'Templates'],
          ['decl','tp','M710 72 L790 72',[750,62,'middle'],'Declare jobs'],
          ['shares','hs','M710 100 L790 100',[750,118,'middle'],'Shares'],
          ['shares','hs','M600 210 L600 128',[592,174,'end'],'Shares'],
-         ['jobs','tp','M640 128 L640 210',[648,174,'start'],'Jobs']]};
+         ['jobs','tp','M640 128 L640 210',[648,174,'start'],'Jobs'],
+         ['rsk','tp','M190 254 L270 254',[230,246,'middle'],'RPC'],
+         ['bridge','tp','M450 236 L500 236 L500 150 L560 150 L560 128',[492,200,'end'],'RSK work'],
+         ['ms','tp','M790 244 L750 244 L750 118 L710 118',[742,190,'end'],'Boosts']]};
 var TALL={W:360,H:700,bw:220,bh:84,
   n:{node:[120,36],tp:[120,176],client:[120,316],pool:[120,476],bitaxe:[120,606]},
-  region:[100,8,252,400],rl:[112,26,'start','THIS LAPTOP'],pl:[120,468,'start','INTERNET'],bl:[120,598,'start','HOME NETWORK'],
+  regions:[[100,8,252,400]],labels:[[112,26,'start','THIS LAPTOP'],[120,468,'start','INTERNET'],[120,598,'start','HOME NETWORK']],
   links:[['ipc','tp','M230 120 L230 176',[238,152,'start'],'IPC'],
          ['tpl','tp','M230 260 L230 316',[238,292,'start'],'Templates'],
          ['decl','tp','M205 400 L205 476',[197,442,'end'],'Declare jobs'],
@@ -585,8 +594,8 @@ var TALL={W:360,H:700,bw:220,bh:84,
 function renderDiagram(st){
   var host=$('diagram');host.textContent='';
   var L=host.clientWidth>=680?WIDE:TALL,svg=sv('svg',{viewBox:'0 0 '+L.W+' '+L.H,'class':'dg',role:'img','aria-label':'Live diagram of the Stratum V2 mining stack'});
-  var r=L.region;svg.appendChild(sv('rect',{x:r[0],y:r[1],width:r[2],height:r[3],rx:16,'class':'rg'}));
-  [L.rl,L.pl,L.bl].forEach(function(q){svg.appendChild(sv('text',{x:q[0],y:q[1],'text-anchor':q[2],'class':'rl'},q[3]))});
+  L.regions.forEach(function(r){svg.appendChild(sv('rect',{x:r[0],y:r[1],width:r[2],height:r[3],rx:16,'class':'rg'}))});
+  L.labels.forEach(function(q){svg.appendChild(sv('text',{x:q[0],y:q[1],'text-anchor':q[2],'class':'rl'},q[3]))});
   L.links.forEach(function(k){
     var state=st.stale?'dead':st.k[k[0]]?'live':st.dead[k[0]]?'dead':'';
     svg.appendChild(sv('path',{d:k[2],'class':'lk '+k[1]+' '+state}));
@@ -594,7 +603,7 @@ function renderDiagram(st){
   L.links.forEach(function(k){var p=k[3],a={x:p[0],y:p[1],'class':'ll','text-anchor':p[2]==='rot'?'middle':p[2]};
     if(p[2]==='rot')a.transform='rotate(-90 '+p[0]+' '+p[1]+')';svg.appendChild(sv('text',a,k[4]))});
   var l=st.l,sv0=st.sv,bx=st.bx,d=st.d,w=L.bw,h=L.bh,ml=w>200?19:16,sl=w>200?31:25;
-  function box(key,title,on,main,sub,hl){var p=L.n[key],x=p[0],y=p[1],g=sv('g',{});
+  function box(key,title,on,main,sub,hl){var p=L.n[key];if(!p)return;var x=p[0],y=p[1],g=sv('g',{});
     g.appendChild(sv('rect',{x:x,y:y,width:w,height:h,rx:12,'class':'bx'+(hl?' hl':'')}));
     g.appendChild(sv('circle',{cx:x+w-16,cy:y+20,r:5,'class':'dt '+(on===true?'on':on===false?'off':'')}));
     g.appendChild(sv('text',{x:x+14,y:y+25,'class':'t'},title));
@@ -607,8 +616,16 @@ function renderDiagram(st){
   box('client','DMND client',st.stale?false:!!sv0.client,!sv0.client?'Down':st.decl?(d.activeId!=null?'Template #'+fmt(d.activeId):'Declaring'):'Connecting',fmt(sv0.miners)+' miner'+(sv0.miners===1?'':'s')+' · up '+dur(sv0.clientUptime),!!st.decl);
   box('pool','DMND pool',st.k.decl?true:null,st.lat!=null?Math.round(st.lat)+' ms':st.k.decl?'Accepting':'–',st.lat!=null?'declaration latency':'external pool');
   box('bitaxe','Bitaxe Gamma',bx?bx.online:null,bx&&bx.online?hrate(bx.hashrate):bx?'Offline':'–',bx&&bx.online?(bx.temp>0?bx.temp.toFixed(0)+' °C':'idle')+' · '+(bx.power!=null?bx.power.toFixed(1)+' W':'–'):'');
+  var rs=l.rsk,ms=l.ms,mact=ms&&ms.acc&&ms.acc.active!=null?fmt(ms.acc.active)+' boosts':ms&&ms.next?'Connected':'–';
+  box('rskj','RSK node',rs?!!rs.synced:null,rs?'Block '+fmt(rs.block):'Not reporting',rs?'Rootstock · '+fmt(rs.peers)+' peers':'optional');
+  box('bridge','RSK bridge',rs&&rs.bridge!=null?rs.bridge:null,rs&&rs.bridge?(rs.mm&&rs.mm.work?'Sending work':'Waiting'):'Stopped','merge mining');
+  box('ms','mempool.space',ms?true:null,mact,'public fee-boost feed');
   if(L===TALL)svg.style.maxWidth='400px',svg.style.margin='0 auto';
   host.appendChild(svg);
+  if(L===TALL){var ch=el('div','chips');
+    [['RSK node',rs?(rs.synced?'synced, block '+fmt(rs.block):'syncing'):'not reporting',rs&&rs.synced],['RSK bridge',rs&&rs.bridge?(rs.mm&&rs.mm.work?'sending work':'waiting'):'stopped',rs&&rs.bridge],['mempool.space',mact,!!ms]].forEach(function(q){
+      var c=el('div','chip');var d=el('i',q[2]?'on':'');c.appendChild(d);c.appendChild(el('b',null,q[0]));c.appendChild(el('span',null,q[1]));ch.appendChild(c)});
+    host.appendChild(ch)}
 }
 function renderStory(st){
   var e=$('story'),l=st.l,sv0=st.sv,bx=st.bx,msg,cls='';
@@ -696,6 +713,17 @@ function renderVs(s){
     r.appendChild(el('div','note',(d>=0?'+':'−')+fmt(Math.abs(Math.round(d)))+' sats ('+(pc>=0?'+':'−')+Math.abs(pc).toFixed(1)+'%) · '+fmt(x.mt)+' vs '+fmt(x.rt)+' transactions'+(x.age!=null?' · my template was '+x.age+'s old':'')));
     box.appendChild(r)});
   box.appendChild(el('div','note','My side is the last template my client declared before the block was found, recorded within 2 seconds. Its age is how long it had been in use when the block arrived. A real block can also include transactions its miner received privately or was paid to add outside the mempool.'));
+}
+/* ---------- prioritised transactions ---------- */
+function renderPrio(st,l){
+  var g=$('prg'),d=l.dmnd,pr=d&&d.prio,dc=st.decl;g.textContent='';
+  $('prnote').textContent='Because my node builds the block, I can move a transaction up the queue by adding a fee delta to it: my own, or one boosted through mempool.space. The pool has no say in it. Zero is normal when nobody has a stuck transaction.';
+  if(!pr||pr.enabled==null){g.appendChild(el('div','card empty','Prioritisation is not reporting.'));return}
+  var inMine=dc?(dc.accel!=null?dc.accel:0)+(dc.prioritized||0):null;
+  g.appendChild(stat('Feature',pr.enabled?'On':'Off',pr.enabled?'reads the mempool.space accelerator feed':'needs RPC access and an API token',pr.enabled?'t':''));
+  g.appendChild(stat('In my block now',inMine==null?'–':fmt(inMine),'boosted transactions in the declared template',inMine?'t':''));
+  g.appendChild(stat('From mempool.space',pr.mempoolSpace==null?'–':fmt(pr.mempoolSpace),'the client is tracking right now'));
+  g.appendChild(stat('Added by me',pr.manual==null?'–':fmt(pr.manual),'manual fee deltas through the client API'));
 }
 /* ---------- RSK merge mining ---------- */
 function renderRsk(l){
@@ -940,7 +968,7 @@ function render(s){
   $('statustxt').textContent=txt;
   $('meta').textContent='Bitcoin Core '+(l.version||'').replace(/^Satoshi:/,'v')+' · sv2-tp · DMND client · Bitaxe Gamma · updated '+ago(st.age);
   renderStory(st);renderDiagram(st);renderKpis(st,s);renderBlock(st);renderClient(st);renderBitaxe(st);
-  renderVs(s);renderMs(st,l);renderRsk(l);renderPolicy(l);renderMix(l);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
+  renderVs(s);renderMs(st,l);renderRsk(l);renderPrio(st,l);renderPolicy(l);renderMix(l);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
   var h=s.history,day=s.now-86400;
   chart($('c7'),series(h,'tf',day).map(function(p){return[p[0],p[1]/1e6]}),{fmt:function(v){return v.toFixed(2)}});
   chart($('c9'),series(h,'ad',day),{fmt:function(v){return fmt(Math.round(v))},zero:true});
