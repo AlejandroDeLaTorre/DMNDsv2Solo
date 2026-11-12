@@ -6,7 +6,7 @@ A home Bitcoin mining setup that uses **Stratum V2 Job Declaration**: your own B
 
 ## Quick start
 
-You need an always-on Linux machine (~80 GB free disk, 8 GB+ RAM), a Bitaxe, and a free DMND token from https://join.dmnd.work.
+You need an always-on Linux machine (~80 GB free disk, 8 GB+ RAM), a Bitaxe, and a DMND token (sign up at https://new-platform.dmnd.work/signup, your account is at https://new-platform.dmnd.work/).
 
 1. Install **Bitcoin Core v30+**, pruned, and let it sync (1–2 days).
 2. Install **sv2-tp** (hands your node's templates to the client).

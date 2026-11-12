@@ -18,7 +18,7 @@ I ran all of this on one Linux laptop. Plan for about an hour of work, plus 1–
 
 - An always-on Linux machine with **~80 GB free disk** (pruned node) and 8 GB+ RAM
 - A **Bitaxe** (or any SV1 miner) on the same network
-- A **DMND token**: register at https://join.dmnd.work and the token arrives by email
+- A **DMND token**: sign up at https://new-platform.dmnd.work/signup, then log in at https://new-platform.dmnd.work/ to get your token
 - Rust (`rustup`) to build the client
 
 Throughout this guide, `<LAN-IP>` means your machine's local IP (find it with `hostname -I`).
