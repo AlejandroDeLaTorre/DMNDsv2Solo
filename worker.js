@@ -450,6 +450,7 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
   <button role="tab" id="t-block" aria-selected="false">My block</button>
   <button role="tab" id="t-miner" aria-selected="false">Miner</button>
   <button role="tab" id="t-nodes" aria-selected="false">Nodes</button>
+  <a class="navlink" href="https://github.com/AlejandroDeLaTorre/DMNDsv2Solo" target="_blank" rel="noopener">Build your own &rarr;</a>
 </nav>
 
 <section id="p-over">
@@ -530,7 +531,7 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
 </section>
 
 <div class="toast" id="toast" hidden></div>
-<footer>Aggregate statistics only: no transactions, addresses, wallet or machine details are published. Updates about every 2 minutes.</footer>
+<footer>Aggregate statistics only: no transactions, addresses, wallet or machine details are published. Updates about every 2 minutes.<br><a href="https://github.com/AlejandroDeLaTorre/DMNDsv2Solo" target="_blank" rel="noopener">Step-by-step guide</a> &middot; <a href="https://new-platform.dmnd.work/signup" target="_blank" rel="noopener">Sign up with DMND</a></footer>
 </div>
 <script>
 (function(){

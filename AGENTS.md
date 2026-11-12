@@ -42,6 +42,7 @@ This repo has two parts:
 
 - A separate Worker with one Durable Object. `page.html` is joined into `worker.js` by `deploy.sh` (same rule: no backticks or `${` in the page). Never print `WRITE_KEY` or `ACCESS_CODE`.
 - `runner.py` is the only code that changes the node. Keep it outbound-only, keep `MODE=dry` the default, record deltas before applying them, and never skip the gate. Do not switch to live mode without the user saying so in the current conversation.
+- Template styles (`hunter_lib.STYLES`, the five cards): `none` and `noinsc` hold transactions back with negative `prioritisetransaction` deltas, in batches, recorded in the state file first. A crash with the empty-block style applied leaves the node with an empty template until `runner.py --reset`, so prefer running the runner as a service. No style votes means Core rules; ties go to the safer style (Core, Max, DMND, No inscriptions, No fee). The DMND client only receives a template that pays more than the previous one until the next block, so "No fee" can be held back in Core but the gate fails and undoes it unless the client follows.
 - Tests: `python3 -I tests/test_blockhunter.py`.
 
 ### Testing changes
