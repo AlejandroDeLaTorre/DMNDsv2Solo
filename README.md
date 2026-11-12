@@ -33,6 +33,7 @@ Bitcoin Core ──IPC──▶ sv2-tp ──SV2──▶ dmnd-client ──SV1�
 | Also merge-mine RSK (optional)               | [GUIDE.md](GUIDE.md#optional-also-mine-rsk-merge-mining) |
 | Check that it works                          | http://127.0.0.1:3001/dashboard/overview (the DMND client's own dashboard) |
 | Optional: share a public dashboard           | [Public dashboard](#optional-public-dashboard-cloudflare) below |
+| Optional: let a crowd vote on your block     | [blockhunter/README.md](blockhunter/README.md) (Block Hunter, [live example](https://block-hunter.alejandro-d92.workers.dev/)) |
 | Use an AI assistant to help me set it up     | [Using an AI assistant](#using-an-ai-assistant) |
 
 The mining stack (GUIDE.md) works on its own. The public dashboard is optional.

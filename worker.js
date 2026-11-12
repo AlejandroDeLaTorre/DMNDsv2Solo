@@ -683,7 +683,7 @@ function renderDiagram(st){
   box('client','DMND client',st.stale?false:!!sv0.client,!sv0.client?'Down':st.decl?(d.activeId!=null?'Template #'+fmt(d.activeId):'Declaring'):'Connecting',fmt(sv0.miners)+' miner'+(sv0.miners===1?'':'s')+' · up '+dur(sv0.clientUptime),!!st.decl);
   box('pool','DMND pool',st.k.decl?true:null,st.lat!=null?Math.round(st.lat)+' ms':st.k.decl?'Accepting':'–',st.lat!=null?'declaration latency':'external pool',false,series(hist,'dl',day));
   box('bitaxe','Bitaxe Gamma',bx?bx.online:null,bx&&bx.online?hrate(bx.hashrate):bx?'Offline':'–',bx&&bx.online?(bx.temp>0?bx.temp.toFixed(0)+' °C':'idle')+' · '+(bx.power!=null?bx.power.toFixed(1)+' W':'–'):'',false,series(hist,'hr',day));
-  var rs=l.rsk,ms=l.ms,mact=ms&&ms.acc&&ms.acc.active!=null?fmt(ms.acc.active)+' boosts':ms&&ms.next?'Connected':'–';
+  var rs=l.rsk,ms=l.ms,mact=ms&&ms.acc&&ms.acc.active!=null?fmt(ms.acc.active)+(ms.acc.active===1?' boost':' boosts'):ms&&ms.next?'Connected':'–';
   box('rskj','RSK node',rs?!!rs.synced:null,rs?'Block '+fmt(rs.block):'Not reporting',rs?'Rootstock · '+fmt(rs.peers)+' peers':'optional');
   box('bridge','RSK bridge',rs&&rs.bridge!=null?rs.bridge:null,rs&&rs.bridge?(rs.mm&&rs.mm.work?'Sending work':'Waiting'):'Stopped','merge mining');
   box('ms','mempool.space',ms?true:null,mact,'public fee-boost feed');
@@ -788,7 +788,7 @@ function renderBlock(st){
   function key(color,txt){var sp=el('span');var b=el('b');b.style.background=color;sp.appendChild(b);sp.appendChild(document.createTextNode(txt));kr.appendChild(sp)}
   key('var(--hash)','Subsidy '+btc(subs));key('var(--accent)','Fees '+btc(dc.fees)+(dc.coinbase?' ('+(dc.fees/dc.coinbase*100).toFixed(2)+'%)':''));c1.appendChild(kr);
   var mini=el('div','mini');
-  [['Transactions',fmt(dc.txCount)],['Avg fee rate',dc.feeRate==null?'–':dc.feeRate.toFixed(1)+' sat/vB'],['Accelerated',dc.accel==null?fmt(dc.prioritized):fmt(dc.accel)+(dc.prioritized?' + '+fmt(dc.prioritized)+' manual':'')]].forEach(function(q){var x=el('div');x.appendChild(el('div','k',q[0]));x.appendChild(el('div','v',q[1]));mini.appendChild(x)});
+  [['Transactions',fmt(dc.txCount)],['Avg fee rate',dc.feeRate==null?'–':dc.feeRate.toFixed(1)+' sat/vB'],['Accelerated',dc.accel==null?fmt(dc.prioritized):fmt(dc.accel)+(d&&d.prio&&d.prio.manual?' + '+fmt(d.prio.manual)+' manual':'')]].forEach(function(q){var x=el('div');x.appendChild(el('div','k',q[0]));x.appendChild(el('div','v',q[1]));mini.appendChild(x)});
   c1.appendChild(mini);host.appendChild(c1);
   var c2=el('div','card');c2.appendChild(el('div','k','Candidates · policy: '+(d&&d.policy?d.policy.replace(/_/g,' '):'highest fees')));
   t.sort(function(a,b){return (b.fees||0)-(a.fees||0)});
