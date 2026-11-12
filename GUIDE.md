@@ -102,18 +102,19 @@ set -a; . ~/.config/dmnd.env; set +a
 
 - `-d 1T`: your expected hashrate (a Bitaxe Gamma does ~1.1 TH/s)
 - `--miner-name`: puts `/DMND/<your-name>/` in the coinbase of your templates
-- The client listens for miners on port **32767** and serves a local dashboard at http://127.0.0.1:3001
+- The client listens for miners on port **32767** and serves its own dashboard at http://127.0.0.1:3001/dashboard/overview, the main place to check that everything works
 
 ---
 
 ## 4. Bitaxe
 
-In the Bitaxe web UI (AxeOS), go to **Settings → Pool** and set:
+In the Bitaxe web UI (AxeOS), open the **Pool** page and fill in Pool 1:
 
 | Field    | Value                   |
 |----------|-------------------------|
-| URL      | `<LAN-IP>`              |
+| Host     | `<LAN-IP>`              |
 | Port     | `32767`                 |
+| Protocol | Stratum V1              |
 | User     | anything, e.g. `bitaxe` |
 | Password | your DMND token         |
 
@@ -197,7 +198,7 @@ Logs: `journalctl --user -u dmnd-client -f`
 - [ ] Node synced (`initialblockdownload: false`)
 - [ ] sv2-tp listening on 8336
 - [ ] Client logs show templates and accepted custom jobs, with no reconnect loop
-- [ ] The client dashboard at http://127.0.0.1:3001 shows your templates
+- [ ] **The client dashboard at http://127.0.0.1:3001/dashboard/overview is your source of truth.** It should show the pool connection, 1 connected miner (your Bitaxe), and new templates being declared. (The templates panel asks for your `API_TX_TOKEN` from `dmnd.env` once.)
 - [ ] Bitaxe connected, hashing, shares accepted
 
 ---

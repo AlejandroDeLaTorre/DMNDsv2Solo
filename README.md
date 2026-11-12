@@ -1,8 +1,22 @@
-# btcnode: mine on your own block templates, and show it off
+# DMNDsv2Solo: mine on your own block templates
 
-A home Bitcoin mining setup that uses **Stratum V2 Job Declaration**: your own Bitcoin Core node builds the block templates, a Bitaxe hashes on them, and the DMND pool pays you. A small public dashboard shows it all live.
+A home Bitcoin mining setup that uses **Stratum V2 Job Declaration**: your own Bitcoin Core node builds the block templates, a Bitaxe hashes on them, and the DMND pool pays you. An optional public dashboard shows it all live.
 
 **Live example:** https://bitcoin-node.alejandro-d92.workers.dev/
+
+## Quick start
+
+You need an always-on Linux machine (~80 GB free disk, 8 GB+ RAM), a Bitaxe, and a free DMND token from https://join.dmnd.work.
+
+1. Install **Bitcoin Core v30+**, pruned, and let it sync (1–2 days).
+2. Install **sv2-tp** (hands your node's templates to the client).
+3. Build and run the **DMND client**.
+4. Point your **Bitaxe** at `<your LAN IP>:32767`, password = your DMND token.
+5. Open **http://127.0.0.1:3001/dashboard/overview**. This is the DMND client's own dashboard and your **source of truth**: it shows the pool connection, your connected miner, the block templates your node declares, and the logs. If it looks right, you are mining on your own templates.
+
+The public Cloudflare dashboard further down is an optional extra for sharing. It is built from the client's data, so when the two disagree, trust the client's dashboard.
+
+Every step, with the exact commands and a check after each one, is in **[GUIDE.md](GUIDE.md)**.
 
 ```
 Bitcoin Core ──IPC──▶ sv2-tp ──SV2──▶ dmnd-client ──SV1──▶ Bitaxe
@@ -17,11 +31,11 @@ Bitcoin Core ──IPC──▶ sv2-tp ──SV2──▶ dmnd-client ──SV1�
 |----------------------------------------------|----------------------------|
 | Set up the node + sv2-tp + DMND + Bitaxe     | **[GUIDE.md](GUIDE.md)**   |
 | Also merge-mine RSK (optional)               | [GUIDE.md](GUIDE.md#optional-also-mine-rsk-merge-mining) |
-| Add the public dashboard on top              | [Dashboard](#dashboard) below |
-| Run the Block Hunter voting game             | [blockhunter/README.md](blockhunter/README.md) |
+| Check that it works                          | http://127.0.0.1:3001/dashboard/overview (the DMND client's own dashboard) |
+| Optional: share a public dashboard           | [Public dashboard](#optional-public-dashboard-cloudflare) below |
 | Use an AI assistant to help me set it up     | [Using an AI assistant](#using-an-ai-assistant) |
 
-The mining stack (GUIDE.md) works on its own. The dashboard is optional.
+The mining stack (GUIDE.md) works on its own. The public dashboard is optional.
 
 ## Using an AI assistant
 
@@ -31,9 +45,11 @@ This repo is written so an AI coding assistant (Claude Code, Codex, Cursor, …)
 
 Assistant instructions live in [AGENTS.md](AGENTS.md) (Claude Code reads it through [CLAUDE.md](CLAUDE.md)). They cover the steps, the known problems, and the rule to never commit or print secrets.
 
-## Dashboard
+## Optional: public dashboard (Cloudflare)
 
-A Cloudflare Worker serves a five-tab page (Overview, My block, Miner, Market, Nodes); the Overview shows the live stack and the RSK merge-mining status. The Worker serves the page; a Python script on your node pushes aggregate stats to it every 2 minutes. No Node.js or wrangler needed, and the free Cloudflare plan is enough.
+Not needed for mining. Skip it unless you want a page to show others. The DMND client's local dashboard at http://127.0.0.1:3001/dashboard/overview is the source of truth.
+
+A Cloudflare Worker serves a four-tab page (Overview, My block, Miner, Nodes); the Overview shows the live stack and the RSK merge-mining status. The Worker serves the page; a Python script on your node pushes aggregate stats to it every 2 minutes. No Node.js or wrangler needed, and the free Cloudflare plan is enough.
 
 | File | What it does |
 |---|---|
