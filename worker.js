@@ -639,9 +639,9 @@ function sparkPath(pts,x,y,w,h){
   return pts.map(function(p,i){return(i?'L':'M')+(x+(p[0]-x0)/Math.max(1,x1-x0)*w).toFixed(1)+' '+(y+(1-(p[1]-lo)/(hi-lo))*h).toFixed(1)}).join('');
 }
 function renderDiagram(st){
-  var host=$('diagram');host.textContent='';
-  var visible=host.clientWidth>0;
-  var L=host.clientWidth>=680?WIDE:TALL,svg=sv('svg',{viewBox:'0 0 '+L.W+' '+L.H,'class':'dg',role:'group','aria-label':'Live diagram of the Stratum V2 mining stack. Select a box for details.'});
+  var host=$('diagram'),hw=host.clientWidth;
+  var visible=hw>0;
+  var L=hw>=680?WIDE:TALL,svg=sv('svg',{viewBox:'0 0 '+L.W+' '+L.H,'class':'dg',role:'group','aria-label':'Live diagram of the Stratum V2 mining stack. Select a box for details.'});
   L.regions.forEach(function(r){svg.appendChild(sv('rect',{x:r[0],y:r[1],width:r[2],height:r[3],rx:16,'class':'rg'}))});
   L.labels.forEach(function(q){svg.appendChild(sv('text',{x:q[0],y:q[1],'text-anchor':q[2],'class':'rl'},q[3]))});
   var l=st.l,sv0=st.sv,bx=st.bx,d=st.d,w=L.bw,h=L.bh,ml=w>200?19:16,sl=w>200?31:25,hist=LAST&&LAST.history||[];
@@ -688,7 +688,7 @@ function renderDiagram(st){
   box('bridge','RSK bridge',rs&&rs.bridge!=null?rs.bridge:null,rs&&rs.bridge?(rs.mm&&rs.mm.work?'Sending work':'Waiting'):'Stopped','merge mining');
   box('ms','mempool.space',ms?true:null,mact,'public fee-boost feed');
   if(L===TALL)svg.style.maxWidth='400px',svg.style.margin='0 auto';
-  host.appendChild(svg);
+  host.textContent='';host.appendChild(svg);
   if(visible)FLASH={};
 }
 /* ---------- tap a box: detail card ---------- */
@@ -992,7 +992,8 @@ function tab(n,keep){TABS.forEach(function(k){$('p-'+k).hidden=k!==n;$('t-'+k).s
   if(LAST&&LAST.latest)renderDiagram(derive(LAST))}
 TABS.forEach(function(k){$('t-'+k).onclick=function(){tab(k)}});
 var h0=(location.hash||'').slice(1);if(TABS.indexOf(h0)>=0)tab(h0,true);
-var rt=null;window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(function(){if(LAST&&LAST.latest)renderDiagram(derive(LAST))},150)});
+/* iOS Safari fires resize when its toolbar collapses while scrolling: only redraw when the width changed. */
+var rt=null,rw=window.innerWidth;window.addEventListener('resize',function(){if(window.innerWidth===rw)return;rw=window.innerWidth;clearTimeout(rt);rt=setTimeout(function(){if(LAST&&LAST.latest)renderDiagram(derive(LAST))},150)});
 load();setInterval(load,30000);
 })();
 </script></body></html>`;
