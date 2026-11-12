@@ -25,7 +25,7 @@ This repo has two parts:
 ## Working on the dashboard code
 
 - **No build step and no dependencies.** Python 3 standard library only; the Worker is one plain JS file.
-- The page has five tabs (`p-over`, `p-block`, `p-miner`, `p-market`, `p-nodes`); new sections go in the tab where a reader would look for them. `worker.js` holds the whole page in `const PAGE = String.raw\`...\``. Inside the page, **never use backticks or `${`**. Use string concatenation and single quotes in the page's JS, and never put an apostrophe inside a single-quoted string (write \u2019 or reword).
+- The page has four tabs (`p-over`, `p-block`, `p-miner`, `p-nodes`); new sections go in the tab where a reader would look for them. `worker.js` holds the whole page in `const PAGE = String.raw\`...\``. Inside the page, **never use backticks or `${`**. Use string concatenation and single quotes in the page's JS, and never put an apostrophe inside a single-quoted string (write \u2019 or reword).
 - **Privacy rule: publish aggregates only.** Never send txids, addresses, IPs, hostnames, peer details, tokens, pool usernames or wallet data to the Worker. The Worker's `sanitize*` functions whitelist and clamp every field; add new fields there, or they are dropped. Pushes over 40,000 bytes are rejected.
 - `collector.py` must keep working when parts are missing (no Bitaxe, no DMND client, no RPC credentials): wrap each source and return `None` on failure.
 - Config comes only from `~/.config/btc-dashboard.env`, `~/.config/dmnd.env` and `~/.config/cloudflare.env`. Never hard-code personal paths, IPs, account IDs or keys.

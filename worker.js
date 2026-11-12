@@ -449,9 +449,7 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
   <button role="tab" id="t-over" aria-selected="true">Overview</button>
   <button role="tab" id="t-block" aria-selected="false">My block</button>
   <button role="tab" id="t-miner" aria-selected="false">Miner</button>
-  <button role="tab" id="t-market" aria-selected="false">Market</button>
   <button role="tab" id="t-nodes" aria-selected="false">Nodes</button>
-  <a class="navlink" href="https://block-hunter.alejandro-d92.workers.dev/" target="_blank" rel="noopener">Block Hunter &#8599;</a>
 </nav>
 
 <section id="p-over">
@@ -514,29 +512,6 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
   </div>
 </section>
 
-<section id="p-market" hidden>
-  <h2 class="sec">What mempool.space sees <span class="tag t">Public data</span></h2>
-  <p class="lead" id="msnote"></p>
-  <div class="charts" id="msg"></div>
-
-  <h2 class="sec">Fee market</h2>
-  <p class="lead" id="fmnote"></p>
-  <div class="grid" id="fm"></div>
-  <div class="card" id="fmb" hidden></div>
-
-  <h2 class="sec">Latest blocks</h2>
-  <p class="lead" id="rbnote"></p>
-  <div class="grid" id="rb"></div>
-
-  <h2 class="sec">What my node accepts <span class="tag t">Relay policy</span></h2>
-  <p class="lead">With Stratum V2 my own node picks the transactions in my block, so its relay policy decides what can be mined. Bitcoin Core does not allow truly non-standard transactions on mainnet, but its defaults already accept most edge cases.</p>
-  <div class="two">
-    <div class="card"><div class="k">Policy &middot; mine vs Bitcoin Core default</div><div id="pol"></div></div>
-    <div class="card"><div class="k">What is in my mempool</div><div id="mix"></div></div>
-  </div>
-  <div class="card"><div class="k">Transaction types in recent blocks</div><div id="mixb" style="overflow-x:auto"></div></div>
-</section>
-
 <section id="p-nodes" hidden>
   <h2 class="sec">Bitcoin node <span class="tag n">Bitcoin Core</span></h2>
   <p class="lead">Bitcoin Core in multiprocess mode, pruned, feeding sv2-tp over IPC.</p>
@@ -591,9 +566,9 @@ function derive(s){
   var hashing=!!(bx&&bx.online&&bx.hashrate>0);
   var lat=d&&d.pool&&d.pool.declaration_latency_ms!=null?d.pool.declaration_latency_ms:null;
   var k={ipc:!stale&&!!sv0.ipc,tpl:!stale&&!!sv0.tp&&synced&&t.length>0,decl:!stale&&!!decl,
-         shares:!stale&&hashing&&sv0.miners>0,jobs:!stale&&sv0.miners>0&&!!decl,bh:!stale&&!!(l.bh&&l.bh.age<900),
+         shares:!stale&&hashing&&sv0.miners>0,jobs:!stale&&sv0.miners>0&&!!decl,
          rsk:!stale&&!!(l.rsk&&l.rsk.synced),bridge:!stale&&!!(l.rsk&&l.rsk.bridge&&l.rsk.mm&&l.rsk.mm.work),ms:!stale&&!!(l.ms&&l.ms.next)};
-  var dead={bh:!l.bh,rsk:!l.rsk,bridge:!(l.rsk&&l.rsk.bridge),ms:!l.ms,ipc:!sv0.ipc,tpl:!sv0.tp,decl:!sv0.client,shares:!sv0.client||(bx&&!bx.online),jobs:!sv0.client};
+  var dead={rsk:!l.rsk,bridge:!(l.rsk&&l.rsk.bridge),ms:!l.ms,ipc:!sv0.ipc,tpl:!sv0.tp,decl:!sv0.client,shares:!sv0.client||(bx&&!bx.online),jobs:!sv0.client};
   return {l:l,age:age,stale:stale,synced:synced,pct:l.progress==null?null:l.progress*100,sv:sv0,bx:bx,d:d,t:t,decl:decl,hashing:hashing,lat:lat,k:k,dead:dead};
 }
 
@@ -622,22 +597,6 @@ var TALL={W:360,H:1140,bw:220,bh:84,
          ['rsk','tp','M230 844 L230 900',[238,876,'start'],'RPC',0],
          ['bridge','tp','M340 942 L354 942 L354 372 L340 372',[348,660,'rot'],'RSK work',0],
          ['ms','tp','M120 1082 L12 1082 L12 328 L120 328',[20,1074,'start'],'Boosts',-12]]};
-/* Block Hunter sits above the Bitcoin node: shift the existing layout down and add its box. */
-function shiftLayout(L,dy){
-  L.H+=dy;
-  Object.keys(L.n).forEach(function(k){L.n[k][1]+=dy});
-  L.regions.forEach(function(r){r[1]+=dy});
-  L.labels.forEach(function(q){q[1]+=dy});
-  L.links.forEach(function(k){
-    k[2]=k[2].replace(/([ML])(-?[0-9.]+) (-?[0-9.]+)/g,function(m,c,x,y){return c+x+' '+(parseFloat(y)+dy)});
-    k[3][1]+=dy;
-  });
-}
-shiftLayout(WIDE,130);shiftLayout(TALL,140);
-WIDE.n.bh=[10,40];WIDE.labels.push([10,28,'start','INTERNET']);
-WIDE.links.push(['bh','tp','M100 128 L100 170',[108,154,'start'],'Crowd picks',0]);
-TALL.n.bh=[120,36];TALL.labels.push([120,28,'start','INTERNET']);
-TALL.links.push(['bh','tp','M230 120 L230 176',[238,152,'start'],'Crowd picks',0]);
 var PREV=null,FLASH={},SEL=null,TICK=null,REDUCE=false;
 try{REDUCE=window.matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
@@ -697,8 +656,6 @@ function renderDiagram(st){
     var go=function(){SEL=SEL===key?null:key;renderDiagram(derive(LAST));renderDgCard()};
     g.onclick=go;g.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}};
     svg.appendChild(g)}
-  var bh=l.bh;
-  box('bh','Block Hunter',bh?bh.age<900:null,bh?(bh.open?'Voting open':bh.picked?'Slice locked':'No votes'):'Offline',bh?'Round '+fmt(bh.height)+' · '+(bh.mode==='live'?'LIVE':'practice'):'optional game');
   var ver=(l.version||'').replace(/^Satoshi:/,'v');
   box('node','Bitcoin node',!st.stale,st.synced?'Block '+fmt(l.blocks):(st.pct==null?'–':st.pct.toFixed(1)+'% synced'),'Core '+ver+' · '+fmt((l.peersIn||0)+(l.peersOut||0))+' peers');
   box('tp','sv2-tp',st.stale?false:!!sv0.tp,!sv0.tp?'Down':st.synced?(st.t.length?'Building blocks':'Serving'):'Waiting for sync','Template Provider · '+dur(sv0.tpUptime));
@@ -726,7 +683,6 @@ function renderDgCard(){
   else if(SEL==='bitaxe'){title='Bitaxe Gamma';col='var(--hash)';if(bx&&bx.online){R('Hashrate',hrate(bx.hashrate));R('ASIC temperature',bx.temp!=null?bx.temp.toFixed(0)+' °C':null);R('Power',bx.power!=null?bx.power.toFixed(1)+' W':null);R('Frequency',bx.frequency!=null?bx.frequency+' MHz':null);R('Voltage',bx.voltage!=null?Math.round(bx.voltage)+' mV':null);R('Shares',fmt(bx.accepted)+' accepted, '+fmt(bx.rejected)+' rejected');R('Best share',bx.bestDiff);R('Uptime',dur(bx.uptime))}else R('Status','offline or not monitored');pts=series(h,'hr',day);unit='hashrate (GH/s), last 24 h'}
   else if(SEL==='rskj'){title='RSK node (RskJ)';if(rs){R('Status',rs.synced?'synced':'syncing');R('Block',fmt(rs.block));R('Latest block',rs.tipAge!=null?ago(rs.tipAge):null);R('Peers',fmt(rs.peers));R('Database',rs.dbBytes!=null?gb(rs.dbBytes):null)}else R('Status','not reporting')}
   else if(SEL==='bridge'){title='RSK bridge';var mm=rs&&rs.mm||{};R('Service',rs&&rs.bridge==null?null:rs&&rs.bridge?'running':'stopped');R('Merge mining',mm.configured==null?null:mm.configured?'on':'off');R('Work for the miner',mm.work==null?null:mm.work?'yes':'no');R('RSK blocks found',fmt(mm.found));R('Job','turns an RSK block into a commitment in my coinbase')}
-  else if(SEL==='bh'){title='Block Hunter (crowd game)';var g2=l.bh;if(g2){R('Mode',g2.mode==='live'?'live: the winning slice is applied to my node':'practice only');R('Round',fmt(g2.height));R('Voting',g2.open?'open':'closed');R('Votes cast',fmt(g2.votes));R('Bundles in the crew block',fmt(g2.picked));R('Crew score',g2.score==null||!g2.picked?null:(g2.score*100).toFixed(1)+'% of best');R('Gate',g2.gate==null?null:g2.gate?'passed':'failed');R('Finished rounds',fmt(g2.rounds));R('Play it','block-hunter.alejandro-d92.workers.dev')}else R('Status','not reporting')}
   else if(SEL==='ms'){title='mempool.space';var n=ms&&ms.next,a=ms&&ms.acc||{};R('Projected next block',n?fmt(Math.round(n.fees))+' sats, '+fmt(n.tx)+' transactions':null);R('Fastest fee tier',ms&&ms.rec&&ms.rec.fastestFee!=null?ms.rec.fastestFee+' sat/vB':null);R('Active accelerations',a.active==null?null:fmt(a.active));R('Completed lately',a.done==null?null:fmt(a.done));R('Polled by the client','every 30 s')}
   var hd=el('div','dch');hd.appendChild(el('b',null,title));var x=el('button','dcx','Close');x.onclick=function(){SEL=null;renderDiagram(derive(LAST));renderDgCard()};hd.appendChild(x);c.appendChild(hd);
   var gr=el('div','dcg');rows.forEach(function(r){var q=el('div');q.appendChild(el('span','k',r[0]));q.appendChild(el('span','v',String(r[1])));gr.appendChild(q)});c.appendChild(gr);
@@ -871,85 +827,6 @@ function renderRsk(l){
   g.appendChild(stat('RSK database',r.dbBytes==null?'–':gb(r.dbBytes),'RSK chain data on this laptop'));
 }
 /* ---------- mempool.space ---------- */
-function renderMs(st,l){
-  var g=$('msg'),nt=$('msnote'),m=l.ms;g.textContent='';
-  nt.textContent='How the next block my node builds compares with the most used public mempool view, and the paid fee-boost market the DMND client reads.';
-  if(!m){g.appendChild(el('div','card empty','No mempool.space data yet'));return}
-  var n=m.next,d=st.decl||(st.t&&st.t[0]),c1=el('div','card');
-  c1.appendChild(el('div','k','Next block: my template vs mempool.space'));
-  if(n&&d){
-    var mx;
-    function pair(title,a,b,f){mx=Math.max(a||0,b||0);c1.appendChild(el('div','note',title));
-      [['My node',a,''],['mempool.space',b,'g']].forEach(function(q){var row=el('div','vl');row.appendChild(el('span','lbl',q[0]));var bar=el('div','bar'),i=el('i',q[2]);i.style.width=(mx&&q[1]?q[1]/mx*100:0)+'%';bar.appendChild(i);row.appendChild(bar);row.appendChild(el('span','val',q[1]==null?'–':f(q[1])));c1.appendChild(row)})}
-    pair('Fees',d.fees,n.fees,function(v){return fmt(Math.round(v))+' sats'});
-    pair('Transactions',d.txCount,n.tx,fmt);
-    pair('Average fee rate',d.feeRate,n.avg,function(v){return v.toFixed(2)+' sat/vB'});
-    var r=m.rec||{},sug=r.fastestFee!=null?'mempool.space suggests '+r.fastestFee+' sat/vB for the next block. ':'';
-    c1.appendChild(el('div','note',sug+'Both numbers are snapshots a moment apart, and each node sees a slightly different set of transactions, so some gap is normal. mempool.space projects '+n.backlog+(n.backlog>=8?' or more':'')+' blocks of waiting transactions.'));
-  }else c1.appendChild(el('div','empty','Waiting for a template or for mempool.space'));
-  g.appendChild(c1);
-  var a=m.acc||{},c2=el('div','card');c2.appendChild(el('div','k','Paid fee boosts (accelerations)'));
-  c2.appendChild(el('div','big2',a.active==null?'–':fmt(a.active)+' active now'));
-  var dcAcc=d&&d.accel!=null?d.accel:null;
-  c2.appendChild(el('div','note','In my template right now: '+(dcAcc==null?'–':fmt(dcAcc))+' boosted transactions'));
-  if(a.done){
-    var mini=el('div','mini');
-    [['Completed',fmt(a.done)+(a.span?' in '+Math.round(a.span)+' h':'')],['Boost value',sats(a.feeDelta)],['Pools taking part',fmt(a.pools)]].forEach(function(q){var x=el('div');x.appendChild(el('div','k',q[0]));x.appendChild(el('div','v',q[1]));mini.appendChild(x)});
-    c2.appendChild(mini);
-    c2.appendChild(el('div','note','Who mined the latest boosted transactions'));
-    var by=a.minedBy||{},ks=Object.keys(by),top=Math.max.apply(null,ks.map(function(k){return by[k]}));
-    ks.forEach(function(k){var row=el('div','mx'),h=el('div','r');h.appendChild(el('span',null,k));h.appendChild(el('b',null,String(by[k])));row.appendChild(h);var bar=el('div','bar'),i=el('i');i.style.width=(top?by[k]/top*100:0)+'%';bar.appendChild(i);row.appendChild(bar);c2.appendChild(row)});
-  }
-  c2.appendChild(el('div','note','Someone with a stuck transaction pays mempool.space to move it to the front, and pools in the program include it. The DMND client reads the same list, so boosted transactions reach my templates by themselves. I cannot see whether the DMND pool is paid for them.'));
-  g.appendChild(c2);
-}
-var KIND={opreturn:['OP_RETURN data','extra data in an output, up to 100 KB per transaction'],
-  inscription:['Inscriptions','data in a Taproot witness envelope (ordinals)'],
-  anchor:['Pay-to-anchor','tiny anchor outputs used to bump fees (Lightning, TRUC)'],
-  truc:['TRUC (v3)','version 3 transactions with simple fee-bumping rules'],
-  baremultisig:['Bare multisig','multisig output without a P2SH wrapper'],
-  dust:['Dust outputs','outputs worth less than it costs to spend them'],
-  big:['Large (20 kvB+)','unusually big transactions'],
-  nonstandardout:['Non-standard outputs','scripts Core would not normally relay']};
-var KORDER=['opreturn','inscription','anchor','truc','baremultisig','dust','big','nonstandardout'];
-function renderPolicy(l){
-  var box=$('pol'),p=l.policy;box.textContent='';
-  if(!p){box.appendChild(el('div','note','No policy data yet.'));return}
-  var rows=[['minrelaytxfee','Minimum relay fee','sat/vB',0.1,-1,'cheapest fee rate accepted'],
-    ['dustrelayfee','Dust threshold fee','sat/vB',3,-1,'0 accepts dust outputs'],
-    ['datacarriersize','OP_RETURN data limit','bytes',100000,1,'per transaction, several outputs allowed'],
-    ['permitbaremultisig','Bare multisig',null,true,1,'accept multisig without P2SH'],
-    ['bytespersigop','Bytes per sigop','',20,-1,'lower accepts sigop-heavy transactions'],
-    ['maxmempool','Mempool size','MB',300,1,'memory set aside for unconfirmed transactions'],
-    ['limitclustercount','Cluster limit','txs',64,1,'max connected unconfirmed transactions'],
-    ['acceptnonstdtxn','Non-standard transactions',null,false,1,'test networks only in Bitcoin Core']];
-  function show(v,u){return typeof v==='boolean'?(v?'yes':'no'):v==null?'–':fmt(v)+(u?' '+u:'')}
-  rows.forEach(function(r){var v=p[r[0]],d=el('div','pr');
-    var name=el('span',null,r[1]),badge;
-    if(r[0]==='acceptnonstdtxn')badge=el('span','badge x','mainnet: off');
-    else if(v===r[3]||v==null)badge=el('span','badge x','default');
-    else{var more=typeof v==='boolean'?v:(r[4]>0?v>r[3]:v<r[3]);badge=el('span','badge '+(more?'p':'s'),more?'more open':'stricter')}
-    name.appendChild(badge);d.appendChild(name);d.appendChild(el('span','mv',show(v,r[2])));d.appendChild(el('span','dv','default '+show(r[3],r[2])));
-    d.appendChild(el('span','d',r[5]));box.appendChild(d)});
-}
-function renderMix(l){
-  var box=$('mix'),hb2=$('mixb'),t=l.txtypes;box.textContent='';hb2.textContent='';
-  if(!t||!t.mempool||!t.mempool.total){box.appendChild(el('div','note','Scanning the mempool. Results appear after the next update.'));hb2.appendChild(el('div','note','Appears once blocks are scanned.'));return}
-  var m=t.mempool;box.appendChild(el('div','note',fmt(m.total)+' transactions checked · '+hb(m.opretBytes)+' of OP_RETURN data waiting'));
-  KORDER.forEach(function(k){var c=m.counts[k]||0,pc=c/m.total*100,r=el('div','mx'),top=el('div','r');
-    var nm=el('span',null,KIND[k][0]);top.appendChild(nm);top.appendChild(el('b',null,fmt(c)+' · '+(pc<1&&c?pc.toFixed(2):pc.toFixed(0))+'%'));r.appendChild(top);
-    var bar=el('div','bar'),i=el('i');i.style.width=Math.max(c?1:0,pc)+'%';bar.appendChild(i);r.appendChild(bar);
-    r.appendChild(el('div','note',KIND[k][1]));box.appendChild(r)});
-  if(!t.blocks.length){hb2.appendChild(el('div','note','Appears once blocks are scanned.'));return}
-  var used=KORDER.filter(function(k){return t.blocks.some(function(b){return b.counts[k]})||(m.counts[k]||0)>0});
-  var tb=el('table','hm'),hr=el('tr');hr.appendChild(el('th',null,'Block'));hr.appendChild(el('th',null,'Txs'));
-  used.forEach(function(k){hr.appendChild(el('th',null,KIND[k][0]))});tb.appendChild(hr);
-  t.blocks.forEach(function(b){var tr=el('tr');tr.appendChild(el('td',null,fmt(b.height)));tr.appendChild(el('td',null,fmt(b.total)));
-    used.forEach(function(k){var c=b.counts[k]||0,pc=b.total?c/b.total*100:0,td=el('td',null,c?(pc<0.1?'<0.1':pc<1?pc.toFixed(1):pc.toFixed(0))+'%':'–');
-      if(c)td.style.background='color-mix(in srgb, var(--accent) '+Math.min(60,Math.max(8,pc*.6)).toFixed(0)+'%, transparent)';tr.appendChild(td)});
-    tb.appendChild(tr)});
-  hb2.appendChild(tb);hb2.appendChild(el('div','note','Share of each block\'s transactions (coinbase excluded). One transaction can count in several columns.'));
-}
 function renderClient(st){
   var g=$('cpg'),d=st.d,sv0=st.sv;g.textContent='';
   if(!d){dimmed(g,['Miners connected','Shares accepted','Share difficulty','Declaration latency'],sv0.client?'waiting for client data':'client down');return}
@@ -1038,34 +915,6 @@ function renderNode(st,s){
    ['Sync speed',last==null?'–':last.toFixed(last<10?1:0)+' /min','blocks, recent']
   ].forEach(function(r){g.appendChild(stat(r[0],r[1],r[2]))});
 }
-function renderFees(l){
-  var g=$('fm'),nt=$('fmnote'),bx=$('fmb'),f=l.fees;g.textContent='';bx.textContent='';
-  var est=f&&f.estimates||{},keys=Object.keys(est);
-  nt.textContent=keys.length||(f&&f.buckets)?'What my node expects a transaction to pay, and how its mempool is spread across fee rates.':'Fee estimates appear once the node has watched the mempool for a while.';
-  var lab={'1':'Next block','3':'Within 3 blocks','6':'Within 6 blocks','24':'Within 4 hours','144':'Within a day'};
-  ['1','3','6','24','144'].forEach(function(k){if(est[k]!=null)g.appendChild(stat(lab[k],est[k].toFixed(1)+' sat/vB','estimated fee rate'))});
-  if(!keys.length)dimmed(g,['Fee estimate'],'not ready yet');
-  var b=f&&f.buckets;if(!b){bx.hidden=true;return}
-  var tot=b.reduce(function(a,x){return a+x},0);bx.hidden=!tot;if(!tot)return;
-  var names=['< 2','2-5','5-10','10-25','25-50','50-100','100+'],mx=Math.max.apply(null,b);
-  bx.appendChild(el('div','k','Mempool by fee rate (sat/vB)'));
-  b.forEach(function(v,i){var r=el('div');r.style.cssText='display:flex;align-items:center;gap:8px;font-size:12px;margin:5px 0';
-    var a=el('span',null,names[i]);a.style.cssText='width:56px;color:var(--mute)';
-    var bar=el('div','bar');bar.style.cssText='flex:1;margin:0;height:8px';var fi=el('i');fi.style.width=(v/mx*100)+'%';bar.appendChild(fi);
-    var n=el('span',null,(v/1e6).toFixed(2)+' MvB');n.style.cssText='width:70px;text-align:right';
-    r.appendChild(a);r.appendChild(bar);r.appendChild(n);bx.appendChild(r)});
-}
-function renderBlocks(l,s){
-  var g=$('rb'),nt=$('rbnote'),r=l.recent||[];g.textContent='';
-  if(!r.length){nt.textContent='The last few blocks appear here once the node is synced.';dimmed(g,['Latest block'],'after sync');return}
-  nt.textContent='Newest first. The pool name comes from the tag in each block\'s coinbase.';
-  r.forEach(function(x){var c=el('div','card stat');c.appendChild(el('div','k','Block '+fmt(x.height)+' · '+ago(Math.max(0,s.now-x.time))));
-    c.appendChild(el('div','v',x.pool||'unknown pool'));
-    [['Transactions',fmt(x.txs)],['Full',x.weight==null?'–':(x.weight/40000).toFixed(1)+'%'],['Fees',x.fees==null?'–':(x.fees/1e8).toFixed(3)+' BTC'],['Avg fee rate',x.feeRate==null?'–':x.feeRate+' sat/vB']].forEach(function(q){c.appendChild(el('div','s',q[0]+': '+q[1]))});
-    g.appendChild(c)});
-}
-
-/* ---------- charts ---------- */
 function chart(host,pts,opt){
   host.textContent='';
   if(!pts||pts.length<2){host.appendChild(el('div','empty','collecting data…'));return}
@@ -1101,7 +950,7 @@ function render(s){
   $('statustxt').textContent=txt;
   $('meta').textContent='Bitcoin Core '+(l.version||'').replace(/^Satoshi:/,'v')+' · sv2-tp · DMND client · Bitaxe Gamma · updated '+ago(st.age);
   renderStory(st);renderDiagram(st);renderKpis(st,s);renderBlock(st);renderClient(st);renderBitaxe(st);
-  renderVs(s);renderMs(st,l);renderRsk(l);renderPrio(st,l);renderDgCard();renderPolicy(l);renderMix(l);renderShares(s);renderOdds(l,s);renderNode(st,s);renderFees(l);renderBlocks(l,s);
+  renderVs(s);renderRsk(l);renderPrio(st,l);renderDgCard();renderShares(s);renderOdds(l,s);renderNode(st,s);
   var h=s.history,day=s.now-86400;
   chart($('c7'),series(h,'tf',day).map(function(p){return[p[0],p[1]/1e6]}),{fmt:function(v){return v.toFixed(2)}});
   chart($('c9'),series(h,'ad',day),{fmt:function(v){return fmt(Math.round(v))},zero:true});
@@ -1115,7 +964,7 @@ function render(s){
   chart($('c4'),series(h,'disk').map(function(p){return[p[0],p[1]/1e9]}),{fmt:function(v){return v.toFixed(1)}});
 }
 function load(){fetch('/api/stats').then(function(r){return r.json()}).then(render).catch(function(){$('meta').textContent='could not load stats'})}
-var TABS=['over','block','miner','market','nodes'];
+var TABS=['over','block','miner','nodes'];
 function tab(n,keep){TABS.forEach(function(k){$('p-'+k).hidden=k!==n;$('t-'+k).setAttribute('aria-selected',k===n)});
   if(!keep){try{history.replaceState(null,'','#'+n)}catch(e){}}
   if(LAST&&LAST.latest)renderDiagram(derive(LAST))}
