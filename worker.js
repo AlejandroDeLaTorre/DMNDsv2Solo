@@ -700,7 +700,7 @@ function renderDgCard(){
   if(SEL==='node'){title='Bitcoin node';R('Version',(l.version||'').replace(/^Satoshi:/,'v'));R('Block height',fmt(l.blocks));R('Peers',fmt((l.peersIn||0)+(l.peersOut||0))+' ('+fmt(l.peersIn)+' in, '+fmt(l.peersOut)+' out)');R('Mempool',fmt(l.mempoolTx)+' transactions');R('Uptime',dur(l.uptime));R('Chain data on disk',gb(l.sizeOnDisk));pts=series(h,'peers',day);unit='peers, last 24 h'}
   else if(SEL==='tp'){title='sv2-tp (Template Provider)';R('Status',sv0.tp?'running':'down');R('Uptime',dur(sv0.tpUptime));R('Talks to Bitcoin Core over','IPC (unix socket)');R('Hands templates to','the DMND client')}
   else if(SEL==='client'){title='DMND client';R('Status',sv0.client?'running':'down');R('Uptime',dur(sv0.clientUptime));R('Miners connected',fmt(sv0.miners));R('Template',d&&d.activeId!=null?'#'+fmt(d.activeId):null);R('Coinbase tag',d&&d.tag);R('Template cadence',declInterval(h)?'a new one every ~'+Math.round(declInterval(h))+' s':null);pts=series(h,'ad',day);unit='templates declared, last 24 h (resets on restart)'}
-  else if(SEL==='pool'){title='DMND pool';R('Declaration latency',st.lat!=null?Math.round(st.lat)+' ms':null);R('Bandwidth',d&&d.pool&&d.pool.bandwidth_bytes_per_sec!=null?hb(d.pool.bandwidth_bytes_per_sec)+'/s':null);R('Who picks the transactions','my node, not the pool');pts=series(h,'dl',day);unit='declaration latency (ms), last 24 h'}
+  else if(SEL==='pool'){title='DMND pool';R('Declaration latency',st.lat!=null?Math.round(st.lat)+' ms':null);R('Bandwidth',d&&d.pool&&d.pool.bandwidth_bytes_per_sec!=null?hb(d.pool.bandwidth_bytes_per_sec)+'/s':null);R('Who picks the transactions','my node, not the pool');R('Does this delay a block?','No: a block I find goes straight to my own node and the network. This number only shows how fast the pool answers.');pts=series(h,'dl',day);unit='declaration latency (ms), last 24 h'}
   else if(SEL==='bitaxe'){title='Bitaxe Gamma';col='var(--hash)';if(bx&&bx.online){R('Hashrate',hrate(bx.hashrate));R('ASIC temperature',bx.temp!=null?bx.temp.toFixed(0)+' °C':null);R('Power',bx.power!=null?bx.power.toFixed(1)+' W':null);R('Frequency',bx.frequency!=null?bx.frequency+' MHz':null);R('Voltage',bx.voltage!=null?Math.round(bx.voltage)+' mV':null);R('Shares',fmt(bx.accepted)+' accepted, '+fmt(bx.rejected)+' rejected');R('Best share',bx.bestDiff);R('Uptime',dur(bx.uptime))}else R('Status','offline or not monitored');pts=series(h,'hr',day);unit='hashrate (GH/s), last 24 h'}
   else if(SEL==='rskj'){title='RSK node (RskJ)';if(rs){R('Status',rs.synced?'synced':'syncing');R('Block',fmt(rs.block));R('Latest block',rs.tipAge!=null?ago(rs.tipAge):null);R('Peers',fmt(rs.peers));R('Database',rs.dbBytes!=null?gb(rs.dbBytes):null)}else R('Status','not reporting')}
   else if(SEL==='bridge'){title='RSK bridge';var mm=rs&&rs.mm||{};R('Service',rs&&rs.bridge==null?null:rs&&rs.bridge?'running':'stopped');R('Merge mining',mm.configured==null?null:mm.configured?'on':'off');R('Work for the miner',mm.work==null?null:mm.work?'yes':'no');R('RSK blocks found',fmt(mm.found));R('Job','turns an RSK block into a commitment in my coinbase')}
@@ -763,7 +763,7 @@ function renderKpis(st,s){
   g.appendChild(kpi('Templates declared',d&&d.activeId!=null?fmt(d.activeId):'–',iv?'a new one every ~'+Math.round(iv)+' s':'since the client started','t'));
   g.appendChild(kpi('Fees in my block',dc?btc(dc.fees):'–',dc&&dc.gained?'+'+fmt(dc.gained)+' sats vs first template':'declared template','t'));
   g.appendChild(kpi('Shares accepted',fmt(acc),d&&d.stats&&d.stats.aggregate_rejected_shares!=null?fmt(d.stats.aggregate_rejected_shares)+' rejected':'by the pool','h'));
-  g.appendChild(kpi('Declaration latency',st.lat!=null?Math.round(st.lat)+' ms':'–','pool reply to my job','t'));
+  g.appendChild(kpi('Declaration latency',st.lat!=null?Math.round(st.lat)+' ms':'–','pool reply to my job, a found block does not wait for it','t'));
 }
 
 /* ---------- the block I'm mining ---------- */
@@ -856,7 +856,7 @@ function renderClient(st){
   g.appendChild(stat('Miners connected',fmt(s.total_connected_device!=null?s.total_connected_device:sv0.miners),'over Stratum V1'));
   g.appendChild(stat('Shares accepted',fmt(s.aggregate_accepted_shares),s.aggregate_rejected_shares!=null?fmt(s.aggregate_rejected_shares)+' rejected':''));
   g.appendChild(stat('Share difficulty',s.aggregate_diff!=null?hnum(s.aggregate_diff,1):'–','set by the pool'));
-  g.appendChild(stat('Declaration latency',p.declaration_latency_ms!=null?Math.round(p.declaration_latency_ms)+' ms':'–','pool reply to a declared job'));
+  g.appendChild(stat('Declaration latency',p.declaration_latency_ms!=null?Math.round(p.declaration_latency_ms)+' ms':'–','pool reply to a declared job, a found block does not wait for it'));
   g.appendChild(stat('Templates declared',d.activeId!=null?fmt(d.activeId):'–','since the client started'));
   g.appendChild(stat('Pool bandwidth',p.bandwidth_bytes_per_sec!=null?hb(p.bandwidth_bytes_per_sec)+'/s':'–','to and from the pool'));
   g.appendChild(stat('Client uptime',dur(sv0.clientUptime),sv0.client?'running':'down'));
