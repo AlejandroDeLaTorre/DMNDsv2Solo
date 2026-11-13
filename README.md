@@ -23,7 +23,7 @@ Tip: open this folder in an AI coding assistant (Claude Code, Codex, Cursor) and
 ## Optional extras
 
 - **Public dashboard** to share your stats: [DASHBOARD.md](DASHBOARD.md) ([live example](https://bitcoin-node.alejandro-d92.workers.dev/))
-- **Block Hunter**, let a crowd vote on your block: [blockhunter/README.md](blockhunter/README.md) ([live example](https://block-hunter.alejandro-d92.workers.dev/))
+- **Create your own block**: with Stratum V2 the miner builds the block, so let a crowd vote on what goes into yours: [blockhunter/README.md](blockhunter/README.md) ([live example](https://block-hunter.alejandro-d92.workers.dev/))
 - **RSK merge mining**: [GUIDE.md](GUIDE.md#optional-also-mine-rsk-merge-mining)
 
 Secrets live in `~/.config/*.env`, never in the repo.

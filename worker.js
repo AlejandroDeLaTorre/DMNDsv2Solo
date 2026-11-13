@@ -451,7 +451,7 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
   <button role="tab" id="t-block" aria-selected="false">My block</button>
   <button role="tab" id="t-miner" aria-selected="false">Miner</button>
   <button role="tab" id="t-nodes" aria-selected="false">Nodes</button>
-  <a class="navlink" href="https://block-hunter.alejandro-d92.workers.dev/" target="_blank" rel="noopener">Block Hunter &#8599;</a>
+  <a class="navlink" href="https://block-hunter.alejandro-d92.workers.dev/" target="_blank" rel="noopener">Create your own block &#8599;</a>
   <a class="navlink" href="https://github.com/AlejandroDeLaTorre/DMNDsv2Solo" target="_blank" rel="noopener">Build your own &rarr;</a>
 </nav>
 
@@ -612,7 +612,7 @@ function shiftLayout(L,dy){
   });
 }
 shiftLayout(WIDE,130);shiftLayout(TALL,140);
-WIDE.n.bh=[10,40];WIDE.labels.push([10,28,'start','INTERNET']);
+WIDE.n.bh=[10,40,204];WIDE.labels.push([10,28,'start','INTERNET']);
 WIDE.links.push(['bh','tp','M100 128 L100 170',[108,154,'start'],'Crowd picks',0]);
 TALL.n.bh=[120,36];TALL.labels.push([120,28,'start','INTERNET']);
 TALL.links.push(['bh','tp','M230 120 L230 176',[238,152,'start'],'Crowd picks',0]);
@@ -665,9 +665,9 @@ function renderDiagram(st){
     var m=sv('animateMotion',{path:k[2],dur:sp+'s',repeatCount:'indefinite',keyPoints:'0;1;1',keyTimes:'0;'+f.toFixed(3)+';1',calcMode:'linear',begin:(-(i*1.3%sp)).toFixed(2)+'s'});
     var o=sv('animate',{attributeName:'opacity',dur:sp+'s',repeatCount:'indefinite',values:'1;1;0;0',keyTimes:'0;'+Math.max(0.001,f-0.002).toFixed(3)+';'+f.toFixed(3)+';1',begin:(-(i*1.3%sp)).toFixed(2)+'s'});
     c.appendChild(m);c.appendChild(o);svg.appendChild(c)});
-  function box(key,title,on,main,sub,hl,spk){var p=L.n[key];if(!p)return;var x=p[0],y=p[1],g=sv('g',{'class':'tap'+(SEL===key?' sel':''),tabindex:0,role:'button','aria-label':title+': '+main});
-    g.appendChild(sv('rect',{x:x,y:y,width:w,height:h,rx:12,'class':'bx'+(hl?' hl':'')+(visible&&FLASH[key]?' flash':'')}));
-    g.appendChild(sv('circle',{cx:x+w-16,cy:y+20,r:5,'class':'dt '+(on===true?'on':on===false?'off':'')}));
+  function box(key,title,on,main,sub,hl,spk){var p=L.n[key];if(!p)return;var x=p[0],y=p[1],bw=p[2]||w,g=sv('g',{'class':'tap'+(SEL===key?' sel':''),tabindex:0,role:'button','aria-label':title+': '+main});
+    g.appendChild(sv('rect',{x:x,y:y,width:bw,height:h,rx:12,'class':'bx'+(hl?' hl':'')+(visible&&FLASH[key]?' flash':'')}));
+    g.appendChild(sv('circle',{cx:x+bw-16,cy:y+20,r:5,'class':'dt '+(on===true?'on':on===false?'off':'')}));
     g.appendChild(sv('text',{x:x+14,y:y+25,'class':'t'},title));
     g.appendChild(sv('text',{x:x+14,y:y+53,'class':'m'},clip(main,ml)));
     if(sub)g.appendChild(sv('text',{x:x+14,y:y+74,'class':'s'},clip(sub,sl)));
@@ -676,7 +676,7 @@ function renderDiagram(st){
     g.onclick=go;g.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}};
     svg.appendChild(g)}
   var bh=l.bh;
-  box('bh','Block Hunter',bh?bh.age<900:null,bh?(bh.open?'Voting open':bh.picked?'Slice locked':'No votes'):'Offline',bh?'Round '+fmt(bh.height)+' · '+(bh.mode==='live'?'LIVE':'practice'):'optional game');
+  box('bh','Create your own block',bh?bh.age<900:null,bh?(bh.open?'Voting open':bh.picked?'Slice locked':'No votes'):'Offline',bh?'Round '+fmt(bh.height)+' · '+(bh.mode==='live'?'LIVE':'practice'):'optional game');
   var ver=(l.version||'').replace(/^Satoshi:/,'v');
   box('node','Bitcoin node',!st.stale,st.synced?'Block '+fmt(l.blocks):(st.pct==null?'–':st.pct.toFixed(1)+'% synced'),'Core '+ver+' · '+fmt((l.peersIn||0)+(l.peersOut||0))+' peers');
   box('tp','sv2-tp',st.stale?false:!!sv0.tp,!sv0.tp?'Down':st.synced?(st.t.length?'Building blocks':'Serving'):'Waiting for sync','Template Provider · '+dur(sv0.tpUptime));
@@ -704,7 +704,7 @@ function renderDgCard(){
   else if(SEL==='bitaxe'){title='Bitaxe Gamma';col='var(--hash)';if(bx&&bx.online){R('Hashrate',hrate(bx.hashrate));R('ASIC temperature',bx.temp!=null?bx.temp.toFixed(0)+' °C':null);R('Power',bx.power!=null?bx.power.toFixed(1)+' W':null);R('Frequency',bx.frequency!=null?bx.frequency+' MHz':null);R('Voltage',bx.voltage!=null?Math.round(bx.voltage)+' mV':null);R('Shares',fmt(bx.accepted)+' accepted, '+fmt(bx.rejected)+' rejected');R('Best share',bx.bestDiff);R('Uptime',dur(bx.uptime))}else R('Status','offline or not monitored');pts=series(h,'hr',day);unit='hashrate (GH/s), last 24 h'}
   else if(SEL==='rskj'){title='RSK node (RskJ)';if(rs){R('Status',rs.synced?'synced':'syncing');R('Block',fmt(rs.block));R('Latest block',rs.tipAge!=null?ago(rs.tipAge):null);R('Peers',fmt(rs.peers));R('Database',rs.dbBytes!=null?gb(rs.dbBytes):null)}else R('Status','not reporting')}
   else if(SEL==='bridge'){title='RSK bridge';var mm=rs&&rs.mm||{};R('Service',rs&&rs.bridge==null?null:rs&&rs.bridge?'running':'stopped');R('Merge mining',mm.configured==null?null:mm.configured?'on':'off');R('Work for the miner',mm.work==null?null:mm.work?'yes':'no');R('RSK blocks found',fmt(mm.found));R('Job','turns an RSK block into a commitment in my coinbase')}
-  else if(SEL==='bh'){title='Block Hunter (crowd game)';R('Play it','block-hunter.alejandro-d92.workers.dev');var g2=l.bh;if(g2){R('Mode',g2.mode==='live'?'live: the winning slice is applied to my node':'practice only');R('Round',fmt(g2.height));R('Voting',g2.open?'open':'closed');R('Votes cast',fmt(g2.votes));R('Bundles in the crew block',fmt(g2.picked));R('Crew score',g2.score==null||!g2.picked?null:(g2.score*100).toFixed(1)+'% of best');R('Gate',g2.gate==null?null:g2.gate?'passed':'failed');R('Finished rounds',fmt(g2.rounds))}else R('Status','not reporting')}
+  else if(SEL==='bh'){title='Create your own block (crowd vote)';R('Play it','block-hunter.alejandro-d92.workers.dev');var g2=l.bh;if(g2){R('Mode',g2.mode==='live'?'live: the winning slice is applied to my node':'practice only');R('Round',fmt(g2.height));R('Voting',g2.open?'open':'closed');R('Votes cast',fmt(g2.votes));R('Bundles in the crew block',fmt(g2.picked));R('Crew score',g2.score==null||!g2.picked?null:(g2.score*100).toFixed(1)+'% of best');R('Gate',g2.gate==null?null:g2.gate?'passed':'failed');R('Finished rounds',fmt(g2.rounds))}else R('Status','not reporting')}
   else if(SEL==='ms'){title='mempool.space';var n=ms&&ms.next,a=ms&&ms.acc||{};R('Projected next block',n?fmt(Math.round(n.fees))+' sats, '+fmt(n.tx)+' transactions':null);R('Fastest fee tier',ms&&ms.rec&&ms.rec.fastestFee!=null?ms.rec.fastestFee+' sat/vB':null);R('Active accelerations',a.active==null?null:fmt(a.active));R('Completed lately',a.done==null?null:fmt(a.done));R('Polled by the client','every 30 s')}
   var hd=el('div','dch');hd.appendChild(el('b',null,title));var x=el('button','dcx','Close');x.onclick=function(){SEL=null;renderDiagram(derive(LAST));renderDgCard()};hd.appendChild(x);c.appendChild(hd);
   var gr=el('div','dcg');rows.forEach(function(r){var q=el('div');q.appendChild(el('span','k',r[0]));q.appendChild(el('span','v',String(r[1])));gr.appendChild(q)});c.appendChild(gr);
