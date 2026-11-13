@@ -3,7 +3,7 @@
 This repo has two parts:
 
 1. **The mining stack** (Bitcoin Core → sv2-tp → dmnd-client → Bitaxe). The setup steps are in [GUIDE.md](GUIDE.md). Nothing in this repo runs it; the guide uses upstream binaries.
-2. **The dashboard** (`collector.py`, `worker.js`, `deploy.sh`, plus the optional `template_watch.py` service), described in [README.md](README.md).
+2. **The dashboard** (`collector.py`, `worker.js`, `deploy.sh`, plus the optional `template_watch.py` service), described in [DASHBOARD.md](DASHBOARD.md).
 
 ## Helping someone set up the mining stack
 
