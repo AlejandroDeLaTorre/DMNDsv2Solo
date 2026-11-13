@@ -33,17 +33,10 @@ This repo has two parts:
 ### The live diagram
 
 - `WIDE` and `TALL` in `worker.js` define the two layouts (boxes, outlines, links). A link is `[key, colour, path, label position, label, dy]`; `dy` is where the value line sits (`null` for none). Link state comes from `derive()`.
-- Block Hunter sits above the Bitcoin node. `shiftLayout()` moves the original layout down so its coordinates stay as they were. `collector.py` reads Block Hunter's public `/api/state` (set `BLOCKHUNTER_URL` in `~/.config/btc-dashboard.env`) and sends counts only.
+- The optional "Create your own block" box (a separate project, key `bh`) sits above the Bitcoin node. `shiftLayout()` moves the original layout down so its coordinates stay as they were. `collector.py` reads that game's public `/api/state` (set `BLOCKHUNTER_URL` in `~/.config/btc-dashboard.env`) and sends counts only.
 - Dots on the lines use SVG `animateMotion` at an illustrative pace; the real rates only set the spacing. Respect `prefers-reduced-motion`.
 - The page refreshes every 30 s but the collector pushes every 2 min, so flashes and toasts fire when new data shows a change, not at the exact moment.
 - A background browser pane throttles timers: to test event detection, extract the function and run it in isolation.
-
-### Block Hunter (`blockhunter/`)
-
-- A separate Worker with one Durable Object. `page.html` is joined into `worker.js` by `deploy.sh` (same rule: no backticks or `${` in the page). Never print `WRITE_KEY` or `ACCESS_CODE`.
-- `runner.py` is the only code that changes the node. Keep it outbound-only, keep `MODE=dry` the default, record deltas before applying them, and never skip the gate. Do not switch to live mode without the user saying so in the current conversation.
-- Template styles (`hunter_lib.STYLES`, the five cards): `none` and `noinsc` hold transactions back with negative `prioritisetransaction` deltas, in batches, recorded in the state file first. A crash with the empty-block style applied leaves the node with an empty template until `runner.py --reset`, so prefer running the runner as a service. No style votes means Core rules; ties go to the safer style (Core, Max, DMND, No inscriptions, No fee). The DMND client only receives a template that pays more than the previous one until the next block, so "No fee" can be held back in Core but the gate fails and undoes it unless the client follows.
-- Tests: `python3 -I tests/test_blockhunter.py`.
 
 ### Testing changes
 

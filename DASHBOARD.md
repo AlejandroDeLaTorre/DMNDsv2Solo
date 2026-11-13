@@ -24,7 +24,7 @@ Bitaxe       ─┘
 
 1. **Cloudflare config.** Copy [`examples/cloudflare.env.example`](examples/cloudflare.env.example) to `~/.config/cloudflare.env` and fill in an API token (Workers Scripts edit + Workers KV Storage edit), your account ID and your workers.dev subdomain.
 2. **Deploy.** Run `./deploy.sh` (set `NAME=...` to change the Worker name; default `bitcoin-node`). It prints your dashboard URL and writes the push URL and write key to `~/.config/btc-dashboard.env`.
-3. **Optional extras** in `~/.config/btc-dashboard.env`: `BITAXE_URL=http://<bitaxe-ip>` for miner stats, `BLOCKHUNTER_URL=https://<your block-hunter worker>` to show Block Hunter in the diagram.
+3. **Optional extras** in `~/.config/btc-dashboard.env`: `BITAXE_URL=http://<bitaxe-ip>` for miner stats, `BLOCKHUNTER_URL=https://<your block-hunter worker>` to show the "Create your own block" game in the diagram.
 4. **Optional DMND + RPC data** in `~/.config/dmnd.env`: `API_TX_TOKEN` for templates, and `RPC_URL`, `RPC_USER`, `RPC_PWD` for the mempool sections. See [`examples/dmnd.env.example`](examples/dmnd.env.example).
 5. **Schedule the collector** every 2 minutes:
 
