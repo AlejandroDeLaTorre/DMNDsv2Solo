@@ -308,7 +308,7 @@ const PAGE = String.raw`<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SV2 Home Mining</title>
+<title>SV2 Mining</title>
 <style>
 :root{--bg:#f6f5f1;--card:#fff;--ink:#1b1b18;--mute:#6b6a63;--line:#e4e2da;--accent:#e8820c;--accent-soft:#fbe7cf;--hash:#1f8f4e;--hash-soft:#d9efe2;--ok:#1f8f4e;--bad:#c0392b;--bar:#ece9df;--region:#f1efe8}
 @media (prefers-color-scheme:dark){:root{--bg:#141412;--card:#1d1d1a;--ink:#ecebe5;--mute:#9a988f;--line:#34332e;--accent:#f5a03a;--accent-soft:#3b2a14;--hash:#4cc27f;--hash-soft:#16301f;--ok:#4cc27f;--bad:#ef6b5b;--bar:#2a2926;--region:#191916}}
@@ -440,7 +440,7 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
 </style></head><body><div class="wrap">
 <header>
   <div>
-    <div class="eyebrow">Stratum V2 &middot; Job Declaration &middot; home mining</div>
+    <div class="eyebrow">Stratum V2 &middot; Job Declaration &middot; live mining</div>
     <h1>Mining on block templates from my own node</h1>
     <div class="sub" id="meta">loading&hellip;</div>
   </div>
@@ -502,7 +502,7 @@ table.hm td{text-align:right;padding:6px;border-top:1px solid var(--line)}
   </div>
 
   <h2 class="sec">Bitaxe Gamma <span class="tag h">Miner</span></h2>
-  <p class="lead">A single BM1370 chip on my home network, pointed at the DMND client.</p>
+  <p class="lead">A single BM1370 chip on a local network, pointed at the DMND client.</p>
   <div class="gauges" id="gauges"></div>
   <div class="grid" id="bx"></div>
   <div class="charts">
@@ -578,7 +578,7 @@ function derive(s){
 /* ---------- live SV2 diagram ---------- */
 var WIDE={W:980,H:336,bw:180,bh:88,
   n:{node:[10,40],tp:[270,40],client:[530,40],pool:[790,40],bitaxe:[530,210],rskj:[10,210],bridge:[270,210],ms:[790,210]},
-  regions:[[0,8,722,136],[0,176,462,136]],labels:[[14,28,'start','THIS LAPTOP'],[790,28,'start','INTERNET'],[14,196,'start','THIS LAPTOP, RSK MERGE MINING'],[790,198,'start','INTERNET'],[530,320,'start','HOME NETWORK']],
+  regions:[[0,8,722,136],[0,176,462,136]],labels:[[14,28,'start','THIS LAPTOP'],[790,28,'start','INTERNET'],[14,196,'start','THIS LAPTOP, RSK MERGE MINING'],[790,198,'start','INTERNET'],[530,320,'start','LOCAL NETWORK']],
   links:[['ipc','tp','M190 84 L270 84',[230,76,'middle'],'IPC',-12],
          ['tpl','tp','M450 84 L530 84',[490,76,'middle'],'Templates',-12],
          ['decl','tp','M710 72 L790 72',[750,62,'middle'],'Declare jobs',-12],
@@ -590,7 +590,7 @@ var WIDE={W:980,H:336,bw:180,bh:88,
          ['ms','tp','M790 244 L750 244 L750 118 L710 118',[742,190,'end'],'Boosts',-12]]};
 var TALL={W:360,H:1140,bw:220,bh:84,
   n:{node:[120,36],tp:[120,176],client:[120,316],pool:[120,476],bitaxe:[120,606],rskj:[120,760],bridge:[120,900],ms:[120,1040]},
-  regions:[[100,8,252,400],[100,732,252,264]],labels:[[112,26,'start','THIS LAPTOP'],[120,468,'start','INTERNET'],[120,598,'start','HOME NETWORK'],[112,750,'start','THIS LAPTOP, RSK'],[120,1032,'start','INTERNET']],
+  regions:[[100,8,252,400],[100,732,252,264]],labels:[[112,26,'start','THIS LAPTOP'],[120,468,'start','INTERNET'],[120,598,'start','LOCAL NETWORK'],[112,750,'start','THIS LAPTOP, RSK'],[120,1032,'start','INTERNET']],
   links:[['ipc','tp','M230 120 L230 176',[238,152,'start'],'IPC',0],
          ['tpl','tp','M230 260 L230 316',[238,292,'start'],'Templates',12],
          ['decl','tp','M205 400 L205 476',[197,442,'end'],'Declare jobs',-12],
